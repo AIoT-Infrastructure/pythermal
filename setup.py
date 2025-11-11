@@ -11,7 +11,7 @@ readme_file = Path(__file__).parent / "README.md"
 long_description = readme_file.read_text() if readme_file.exists() else ""
 
 # Get version from package
-version = "0.1.1"
+version = "0.1.2"
 
 # Find all native binaries to include
 package_dir = Path(__file__).parent / "pythermal" / "_native" / "armLinux"
@@ -29,7 +29,7 @@ setup(
     long_description_content_type="text/markdown",
     author="ThermalCare Team",
     author_email="yunqiguo@cuhk.edu.hk",
-    url="https://github.com/AIoT-Infrastructure/thermal-sensing-devkit",
+    url="https://github.com/AIoT-Infrastructure/pythermal",
     packages=find_packages(),
     package_data={
         "pythermal": [

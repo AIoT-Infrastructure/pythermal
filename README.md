@@ -38,7 +38,7 @@ It provides unified APIs for recording, visualization, and intelligent analysis 
 Before installing the Python package, you need to set up the thermal camera permissions and native runtime:
 
 ```bash
-cd pythermal-devkit
+cd pythermal
 ./setup.sh
 ```
 
@@ -63,7 +63,7 @@ Or from source:
 
 ```bash
 git clone https://github.com/<your-org>/pythermal.git
-cd pythermal-devkit
+cd pythermal
 uv pip install .
 ```
 
@@ -297,7 +297,7 @@ The `ThermalDevice` class:
 ## 📦 Directory Structure
 
 ```
-pythermal-devkit/
+pythermal/
 ├── pythermal/
 │   ├── __init__.py
 │   ├── device.py              # ThermalDevice class (manages subprocess)
