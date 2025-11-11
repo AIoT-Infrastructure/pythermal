@@ -32,9 +32,10 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     
-    - name: Install dependencies
+    - name: Create virtual environment and install dependencies
       run: |
-        uv pip install flake8 black
+        uv venv
+        uv pip install --python .venv/bin/python flake8 black
     
     - name: Lint with flake8
       run: |
@@ -67,13 +68,14 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
     
-    - name: Install dependencies
+    - name: Create virtual environment and install dependencies
       run: |
-        uv pip install pytest pytest-cov numpy opencv-python-headless
+        uv venv
+        uv pip install --python .venv/bin/python pytest pytest-cov numpy opencv-python-headless
     
     - name: Install package in development mode
       run: |
-        uv pip install -e .
+        uv pip install --python .venv/bin/python -e .
     
     - name: Test imports
       run: |
@@ -124,9 +126,10 @@ jobs:
       with:
         python-version: "3.11"
     
-    - name: Install documentation dependencies
+    - name: Create virtual environment and install documentation dependencies
       run: |
-        uv pip install sphinx sphinx-rtd-theme sphinxcontrib-napoleon
+        uv venv
+        uv pip install --python .venv/bin/python sphinx sphinx-rtd-theme sphinxcontrib-napoleon
     
     - name: Build documentation
       run: |
@@ -165,9 +168,10 @@ jobs:
       with:
         python-version: "3.11"
     
-    - name: Install documentation dependencies
+    - name: Create virtual environment and install documentation dependencies
       run: |
-        uv pip install sphinx sphinx-rtd-theme sphinxcontrib-napoleon
+        uv venv
+        uv pip install --python .venv/bin/python sphinx sphinx-rtd-theme sphinxcontrib-napoleon
     
     - name: Build documentation
       run: |
