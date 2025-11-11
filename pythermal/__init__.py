@@ -17,6 +17,8 @@ from .thermal_shared_memory import (
 )
 from .record import ThermalRecorder
 from .live_view import ThermalLiveView
+from .detections import detect_object_centers, cluster_objects
+from .detections.detector import DetectedObject
 
 __all__ = [
     "ThermalDevice",
@@ -24,6 +26,9 @@ __all__ = [
     "FrameMetadata",
     "ThermalRecorder",
     "ThermalLiveView",
+    "detect_object_centers",
+    "cluster_objects",
+    "DetectedObject",
     "WIDTH",
     "HEIGHT",
     "TEMP_WIDTH",

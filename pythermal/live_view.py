@@ -245,7 +245,7 @@ class ThermalLiveView:
             
             if temp_at_mouse is not None:
                 # Draw temperature near cursor (in thermal image area)
-                temp_text = f"{temp_at_mouse:.1f}°C"
+                temp_text = f"{temp_at_mouse:.1f}C"
                 text_size = cv2.getTextSize(temp_text, font, font_scale, thickness)[0]
                 
                 # Position text above cursor, or below if too close to top

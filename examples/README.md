@@ -58,7 +58,35 @@ python examples/live_view.py --device /path/to/native/dir
 - `t` - Toggle view mode
 - Mouse - Hover to see temperature
 
-## Requirements
+### 3. `detect_objects.py` - Object Detection and Clustering
+
+Detect objects in thermal images based on temperature ranges and visualize them with colored clusters:
+
+```bash
+# Basic usage (detects objects in 31-39°C range for human body detection)
+python examples/detect_objects.py
+
+# The script will display:
+# - Thermal image with temperature colormap overlay
+# - Detected objects with bounding boxes
+# - Clustered objects with different colors
+# - Temperature information for each detected object
+```
+
+**Features:**
+- Detects object centers based on configurable temperature range (default: 31-39°C for human body)
+- Clusters nearby objects together
+- Visualizes clusters with distinct colors
+- Shows bounding boxes, centers, and temperature statistics
+
+**Controls:**
+- `q` - Quit
+
+**Detection Parameters:**
+- `temp_min`: Minimum temperature threshold (default: 31.0°C)
+- `temp_max`: Maximum temperature threshold (default: 39.0°C)
+- `min_area`: Minimum area in pixels for detected objects (default: 50)
+- `max_distance`: Maximum distance for clustering (default: 30.0 pixels)
 
 All examples require:
 - PyThermal library installed
