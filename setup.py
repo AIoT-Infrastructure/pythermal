@@ -6,12 +6,25 @@ Setup script for pythermal library
 from setuptools import setup, find_packages
 from pathlib import Path
 
+# Import custom command
+try:
+    from pythermal.commands import BuildDocsCommand
+except ImportError:
+    # If commands module doesn't exist yet, create a dummy command
+    from setuptools import Command
+    class BuildDocsCommand(Command):
+        description = 'Build Sphinx documentation'
+        user_options = []
+        def initialize_options(self): pass
+        def finalize_options(self): pass
+        def run(self): pass
+
 # Read README for long description
 readme_file = Path(__file__).parent / "README.md"
 long_description = readme_file.read_text() if readme_file.exists() else ""
 
 # Get version from package
-version = "0.1.3"
+version = "0.1.4"
 
 # Find all native binaries to include
 package_dir = Path(__file__).parent / "pythermal" / "_native" / "armLinux"
@@ -69,5 +82,8 @@ setup(
         "Topic :: Multimedia :: Video :: Capture",
     ],
     zip_safe=False,  # Required for native binaries
+    cmdclass={
+        'build_docs': BuildDocsCommand,
+    },
 )
 
