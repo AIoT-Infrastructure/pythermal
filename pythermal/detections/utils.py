@@ -7,7 +7,8 @@ different detection modules.
 """
 
 import numpy as np
-from typing import List
+import cv2
+from typing import List, Optional, Callable
 from dataclasses import dataclass
 
 
@@ -116,4 +117,205 @@ def cluster_objects(
         clusters.append(cluster)
     
     return clusters
+
+
+def calculate_aspect_ratio(obj: DetectedObject) -> float:
+    """
+    Calculate aspect ratio of detected object.
+    
+    Args:
+        obj: DetectedObject instance
+    
+    Returns:
+        Aspect ratio (width/height). Values > 1.0 indicate wider objects.
+    """
+    if obj.height == 0:
+        return float('inf')
+    return obj.width / obj.height
+
+
+def calculate_compactness(obj: DetectedObject) -> float:
+    """
+    Calculate compactness (circularity approximation) of detected object.
+    
+    Uses bounding box approximation: 4π*area/(width+height)²
+    Higher values (closer to 1.0) indicate more circular/compact objects.
+    
+    Args:
+        obj: DetectedObject instance
+    
+    Returns:
+        Compactness value (0.0 to 1.0)
+    """
+    if obj.width == 0 and obj.height == 0:
+        return 0.0
+    perimeter_approx = 2 * (obj.width + obj.height)
+    if perimeter_approx == 0:
+        return 0.0
+    return (4 * np.pi * obj.area) / (perimeter_approx ** 2)
+
+
+def calculate_circularity(contour: np.ndarray, area: float) -> float:
+    """
+    Calculate true circularity from contour.
+    
+    Circularity = 4π*area/perimeter²
+    Higher values (closer to 1.0) indicate more circular objects.
+    
+    Args:
+        contour: Contour points (numpy array)
+        area: Contour area
+    
+    Returns:
+        Circularity value (0.0 to 1.0)
+    """
+    if area == 0:
+        return 0.0
+    perimeter = cv2.arcLength(contour, True)
+    if perimeter == 0:
+        return 0.0
+    return (4 * np.pi * area) / (perimeter ** 2)
+
+
+def calculate_convexity_ratio(contour: np.ndarray, area: float) -> float:
+    """
+    Calculate convexity ratio from contour.
+    
+    Convexity = area / convex_hull_area
+    Higher values (closer to 1.0) indicate more convex objects.
+    
+    Args:
+        contour: Contour points (numpy array)
+        area: Contour area
+    
+    Returns:
+        Convexity ratio (0.0 to 1.0)
+    """
+    if area == 0:
+        return 0.0
+    hull = cv2.convexHull(contour)
+    hull_area = cv2.contourArea(hull)
+    if hull_area == 0:
+        return 0.0
+    return area / hull_area
+
+
+def filter_by_aspect_ratio(
+    objects: List[DetectedObject],
+    min_ratio: Optional[float] = None,
+    max_ratio: Optional[float] = None
+) -> List[DetectedObject]:
+    """
+    Filter objects by aspect ratio (width/height).
+    
+    Args:
+        objects: List of DetectedObject instances
+        min_ratio: Minimum aspect ratio (default: None, no minimum)
+        max_ratio: Maximum aspect ratio (default: None, no maximum)
+    
+    Returns:
+        Filtered list of objects
+    """
+    filtered = []
+    for obj in objects:
+        ratio = calculate_aspect_ratio(obj)
+        if min_ratio is not None and ratio < min_ratio:
+            continue
+        if max_ratio is not None and ratio > max_ratio:
+            continue
+        filtered.append(obj)
+    return filtered
+
+
+def filter_by_compactness(
+    objects: List[DetectedObject],
+    min_compactness: Optional[float] = None,
+    max_compactness: Optional[float] = None
+) -> List[DetectedObject]:
+    """
+    Filter objects by compactness (circularity approximation).
+    
+    Args:
+        objects: List of DetectedObject instances
+        min_compactness: Minimum compactness (default: None, no minimum)
+        max_compactness: Maximum compactness (default: None, no maximum)
+    
+    Returns:
+        Filtered list of objects
+    """
+    filtered = []
+    for obj in objects:
+        compactness = calculate_compactness(obj)
+        if min_compactness is not None and compactness < min_compactness:
+            continue
+        if max_compactness is not None and compactness > max_compactness:
+            continue
+        filtered.append(obj)
+    return filtered
+
+
+def filter_by_area(
+    objects: List[DetectedObject],
+    min_area: Optional[int] = None,
+    max_area: Optional[int] = None
+) -> List[DetectedObject]:
+    """
+    Filter objects by area.
+    
+    Args:
+        objects: List of DetectedObject instances
+        min_area: Minimum area in pixels (default: None, no minimum)
+        max_area: Maximum area in pixels (default: None, no maximum)
+    
+    Returns:
+        Filtered list of objects
+    """
+    filtered = []
+    for obj in objects:
+        if min_area is not None and obj.area < min_area:
+            continue
+        if max_area is not None and obj.area > max_area:
+            continue
+        filtered.append(obj)
+    return filtered
+
+
+def filter_by_shape(
+    objects: List[DetectedObject],
+    min_aspect_ratio: Optional[float] = None,
+    max_aspect_ratio: Optional[float] = None,
+    min_compactness: Optional[float] = None,
+    max_compactness: Optional[float] = None,
+    min_area: Optional[int] = None,
+    max_area: Optional[int] = None
+) -> List[DetectedObject]:
+    """
+    Filter objects by multiple shape criteria.
+    
+    Convenience function that applies all shape filters at once.
+    
+    Args:
+        objects: List of DetectedObject instances
+        min_aspect_ratio: Minimum aspect ratio (width/height)
+        max_aspect_ratio: Maximum aspect ratio (width/height)
+        min_compactness: Minimum compactness (0.0-1.0)
+        max_compactness: Maximum compactness (0.0-1.0)
+        min_area: Minimum area in pixels
+        max_area: Maximum area in pixels
+    
+    Returns:
+        Filtered list of objects
+    """
+    filtered = objects
+    
+    if min_aspect_ratio is not None or max_aspect_ratio is not None:
+        filtered = filter_by_aspect_ratio(filtered, min_aspect_ratio, max_aspect_ratio)
+    
+    if min_compactness is not None or max_compactness is not None:
+        filtered = filter_by_compactness(filtered, min_compactness, max_compactness)
+    
+    if min_area is not None or max_area is not None:
+        filtered = filter_by_area(filtered, min_area, max_area)
+    
+    return filtered
 
