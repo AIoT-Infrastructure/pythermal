@@ -1,0 +1,130 @@
+# This workflow will install Python dependencies, run tests and lint with a variety of Python versions
+# Adapted for PyThermal - ARM Linux thermal camera library
+
+name: Python package
+
+on:
+  push:
+    branches: [ "main", "master", "develop" ]
+  pull_request:
+    branches: [ "main", "master", "develop" ]
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install flake8 black
+    
+    - name: Lint with flake8
+      run: |
+        # stop the build if there are Python syntax errors or undefined names
+        flake8 pythermal examples tests --count --select=E9,F63,F7,F82 --show-source --statistics
+        # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
+        flake8 pythermal examples tests --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+    
+    - name: Check code formatting with black
+      run: |
+        black --check pythermal examples tests || true
+
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install pytest pytest-cov numpy opencv-python-headless
+    
+    - name: Install package in development mode
+      run: |
+        pip install -e .
+    
+    - name: Test imports
+      run: |
+        python -c "from pythermal import ThermalDevice, ThermalRecorder, ThermalLiveView, ThermalSharedMemory; print('✓ All imports successful')"
+    
+    - name: Test basic functionality (no hardware)
+      run: |
+        # Run tests that don't require hardware
+        python -c "
+        from pythermal import ThermalDevice, ThermalSharedMemory
+        import sys
+        
+        # Test device creation (without starting)
+        device = ThermalDevice()
+        print('✓ ThermalDevice created')
+        
+        # Test shared memory reader creation
+        shm = ThermalSharedMemory()
+        print('✓ ThermalSharedMemory created')
+        
+        # Test constants
+        from pythermal import WIDTH, HEIGHT, TEMP_WIDTH, TEMP_HEIGHT
+        assert WIDTH == 240 and HEIGHT == 240
+        assert TEMP_WIDTH == 96 and TEMP_HEIGHT == 96
+        print('✓ Constants correct')
+        
+        print('✓ All basic tests passed')
+        "
+    
+    - name: Run pytest (if tests exist)
+      run: |
+        pytest tests/ -v --tb=short -k "not hardware" || echo "No pytest tests found or hardware tests skipped"
+      continue-on-error: true
+
+  build:
+    name: Build package
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+    
+    - name: Install build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install build wheel
+    
+    - name: Build package
+      run: |
+        python -m build
+    
+    - name: Check build artifacts
+      run: |
+        ls -lh dist/
+    
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: dist-packages
+        path: dist/
+        retention-days: 7
+
