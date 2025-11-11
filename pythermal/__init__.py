@@ -17,7 +17,12 @@ from .thermal_shared_memory import (
 )
 from .record import ThermalRecorder
 from .live_view import ThermalLiveView
-from .detections import detect_object_centers, cluster_objects
+from .detections import (
+    detect_object_centers,
+    cluster_objects,
+    BackgroundSubtractor,
+    detect_moving_objects
+)
 from .detections.detector import DetectedObject
 
 __all__ = [
@@ -28,6 +33,8 @@ __all__ = [
     "ThermalLiveView",
     "detect_object_centers",
     "cluster_objects",
+    "BackgroundSubtractor",
+    "detect_moving_objects",
     "DetectedObject",
     "WIDTH",
     "HEIGHT",

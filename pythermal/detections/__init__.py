@@ -5,10 +5,19 @@ Provides functions to detect object centers based on temperature ranges
 and cluster detected objects for visualization.
 """
 
-from .detector import detect_object_centers, cluster_objects
+from .detector import (
+    detect_object_centers,
+    cluster_objects,
+    BackgroundSubtractor,
+    detect_moving_objects,
+    DetectedObject
+)
 
 __all__ = [
     "detect_object_centers",
     "cluster_objects",
+    "BackgroundSubtractor",
+    "detect_moving_objects",
+    "DetectedObject",
 ]
 
