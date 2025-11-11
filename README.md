@@ -247,16 +247,45 @@ This will start the thermal device and display a live view window.
 
 ## 🧰 API Overview
 
-| Class / Function      | Purpose                                         |
+### Core Classes
+
+| Class                 | Purpose                                         |
 | --------------------- | ----------------------------------------------- |
 | `ThermalDevice`       | Manages thermal camera initialization via subprocess and shared memory access |
 | `ThermalSharedMemory` | Reads thermal data from shared memory (YUYV frames, temperature arrays, metadata) |
 | `ThermalRecorder`     | Records raw and colored frames to files        |
 | `ThermalLiveView`     | Displays live thermal imaging feed with OpenCV  |
 | `FrameMetadata`       | Named tuple containing frame metadata (seq, flag, dimensions, temperatures) |
+
+### Detection Classes
+
+| Class                 | Purpose                                         |
+| --------------------- | ----------------------------------------------- |
+| `DetectedObject`      | Dataclass representing a detected object with center, size, and temperature stats |
+| `BackgroundSubtractor` | Background subtraction for motion detection using running average |
+| `ROI`                 | Region of Interest definition with optional temperature thresholds |
+| `ROIManager`          | Manages multiple ROIs for zone monitoring and filtering |
+
+### Detection Functions
+
+| Function              | Purpose                                         |
+| --------------------- | ----------------------------------------------- |
 | `detect_object_centers` | Detect object centers from temperature map based on temperature range |
+| `detect_moving_objects` | Detect moving objects using background subtraction |
 | `cluster_objects`    | Cluster detected objects that are close to each other |
-| `DetectedObject`     | Dataclass representing a detected object with center, size, and temperature stats |
+
+### Shape Analysis Functions
+
+| Function              | Purpose                                         |
+| --------------------- | ----------------------------------------------- |
+| `calculate_aspect_ratio` | Calculate aspect ratio (width/height) of detected object |
+| `calculate_compactness` | Calculate compactness (circularity approximation) |
+| `calculate_circularity` | Calculate true circularity from contour |
+| `calculate_convexity_ratio` | Calculate convexity ratio from contour |
+| `filter_by_aspect_ratio` | Filter objects by aspect ratio |
+| `filter_by_compactness` | Filter objects by compactness |
+| `filter_by_area`      | Filter objects by area (min/max) |
+| `filter_by_shape`     | Filter objects by multiple shape criteria |
 
 ---
 
@@ -350,7 +379,10 @@ pythermal/
 │   ├── live_view.py           # ThermalLiveView class
 │   ├── detections/            # Object detection module
 │   │   ├── __init__.py
-│   │   └── detector.py        # Object detection and clustering functions
+│   │   ├── utils.py           # Shared utilities and shape analysis
+│   │   ├── temperature_detection.py  # Temperature-based detection
+│   │   ├── motion_detection.py       # Background subtraction and motion detection
+│   │   └── roi.py             # ROI management and zone monitoring
 │   └── _native/
 │       └── armLinux/
 │           ├── pythermal-recorder
@@ -358,7 +390,9 @@ pythermal/
 ├── examples/                  # Example scripts
 │   ├── live_view.py
 │   ├── record_thermal.py
-│   └── detect_objects.py      # Object detection visualization example
+│   ├── detect_objects.py      # Object detection visualization example
+│   ├── detect_motion.py       # Motion detection example
+│   └── detect_roi.py          # ROI zone monitoring example
 ├── setup.sh                   # Setup script for permissions and compilation
 ├── setup-thermal-permissions.sh
 ├── setup.py                   # Python package setup
