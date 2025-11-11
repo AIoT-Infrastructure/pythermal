@@ -11,7 +11,7 @@ readme_file = Path(__file__).parent / "README.md"
 long_description = readme_file.read_text() if readme_file.exists() else ""
 
 # Get version from package
-version = "0.1.2"
+version = "0.1.3"
 
 # Find all native binaries to include
 package_dir = Path(__file__).parent / "pythermal" / "_native" / "armLinux"

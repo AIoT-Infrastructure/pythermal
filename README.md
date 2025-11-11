@@ -19,12 +19,12 @@ It provides unified APIs for recording, visualization, and intelligent analysis 
 * **Shared Memory Architecture**
   Efficient zero-copy access to thermal data via shared memory interface.
 
-* **Thermal Analytics** (Future Development)
-  Built-in lightweight models for:
-
-  * Human body detection
-  * Skeleton (pose) detection
-  * ROI temperature statistics (max / min / avg)
+* **Thermal Object Detection**
+  Detect objects based on temperature ranges with clustering support:
+  
+  * Temperature-based object detection (default: 31-39°C for human body)
+  * Object center detection and clustering
+  * Temperature statistics per detected object (min / max / avg)
 
 * **Offline Replay and Analysis** (Future Development)
   Replay recorded sessions for algorithm benchmarking or dataset generation.
@@ -188,6 +188,47 @@ device.stop()
 
 ---
 
+### 5. Detect Objects in Thermal Images
+
+Detect objects based on temperature ranges and visualize them with clustering:
+
+```python
+from pythermal import ThermalDevice, detect_object_centers, cluster_objects
+
+device = ThermalDevice()
+device.start()
+shm = device.get_shared_memory()
+
+if shm.has_new_frame():
+    metadata = shm.get_metadata()
+    temp_array = shm.get_temperature_array()
+    
+    # Detect objects in temperature range (default: 31-39°C for human body)
+    objects = detect_object_centers(
+        temp_array=temp_array,
+        min_temp=metadata.min_temp,
+        max_temp=metadata.max_temp,
+        temp_min=31.0,  # Minimum temperature threshold
+        temp_max=39.0,  # Maximum temperature threshold
+        min_area=50     # Minimum area in pixels
+    )
+    
+    # Cluster nearby objects together
+    clusters = cluster_objects(objects, max_distance=30.0)
+    
+    # Each object contains: center_x, center_y, width, height, area,
+    # avg_temperature, max_temperature, min_temperature
+    for obj in objects:
+        print(f"Object at ({obj.center_x:.1f}, {obj.center_y:.1f}): "
+              f"{obj.avg_temperature:.1f}°C")
+
+device.stop()
+```
+
+See `examples/detect_objects.py` for a complete visualization example.
+
+---
+
 ## 🧩 Command Line Interface
 
 | Command                | Description                                     |
@@ -206,13 +247,16 @@ This will start the thermal device and display a live view window.
 
 ## 🧰 API Overview
 
-| Class                 | Purpose                                         |
+| Class / Function      | Purpose                                         |
 | --------------------- | ----------------------------------------------- |
 | `ThermalDevice`       | Manages thermal camera initialization via subprocess and shared memory access |
 | `ThermalSharedMemory` | Reads thermal data from shared memory (YUYV frames, temperature arrays, metadata) |
 | `ThermalRecorder`     | Records raw and colored frames to files        |
 | `ThermalLiveView`     | Displays live thermal imaging feed with OpenCV  |
 | `FrameMetadata`       | Named tuple containing frame metadata (seq, flag, dimensions, temperatures) |
+| `detect_object_centers` | Detect object centers from temperature map based on temperature range |
+| `cluster_objects`    | Cluster detected objects that are close to each other |
+| `DetectedObject`     | Dataclass representing a detected object with center, size, and temperature stats |
 
 ---
 
@@ -304,10 +348,17 @@ pythermal/
 │   ├── thermal_shared_memory.py  # Shared memory reader
 │   ├── record.py              # ThermalRecorder class
 │   ├── live_view.py           # ThermalLiveView class
+│   ├── detections/            # Object detection module
+│   │   ├── __init__.py
+│   │   └── detector.py        # Object detection and clustering functions
 │   └── _native/
 │       └── armLinux/
 │           ├── pythermal-recorder
 │           └── *.so            # Native libraries
+├── examples/                  # Example scripts
+│   ├── live_view.py
+│   ├── record_thermal.py
+│   └── detect_objects.py      # Object detection visualization example
 ├── setup.sh                   # Setup script for permissions and compilation
 ├── setup-thermal-permissions.sh
 ├── setup.py                   # Python package setup
