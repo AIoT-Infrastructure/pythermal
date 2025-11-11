@@ -21,9 +21,11 @@ from .detections import (
     detect_object_centers,
     cluster_objects,
     BackgroundSubtractor,
-    detect_moving_objects
+    detect_moving_objects,
+    ROI,
+    ROIManager,
+    DetectedObject,
 )
-from .detections.detector import DetectedObject
 
 __all__ = [
     "ThermalDevice",
@@ -35,6 +37,8 @@ __all__ = [
     "cluster_objects",
     "BackgroundSubtractor",
     "detect_moving_objects",
+    "ROI",
+    "ROIManager",
     "DetectedObject",
     "WIDTH",
     "HEIGHT",

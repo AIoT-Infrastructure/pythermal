@@ -1,23 +1,28 @@
 """
 Detection module for thermal object detection and clustering.
 
-Provides functions to detect object centers based on temperature ranges
-and cluster detected objects for visualization.
+Provides functions for:
+- Temperature-based object detection
+- Motion detection using background subtraction
+- Region of Interest (ROI) management and zone monitoring
 """
 
-from .detector import (
-    detect_object_centers,
-    cluster_objects,
-    BackgroundSubtractor,
-    detect_moving_objects,
-    DetectedObject
-)
+from .utils import DetectedObject, convert_to_celsius, cluster_objects
+from .temperature_detection import detect_object_centers
+from .motion_detection import BackgroundSubtractor, detect_moving_objects
+from .roi import ROI, ROIManager
 
 __all__ = [
-    "detect_object_centers",
+    # Utilities
+    "DetectedObject",
+    "convert_to_celsius",
     "cluster_objects",
+    # Temperature detection
+    "detect_object_centers",
+    # Motion detection
     "BackgroundSubtractor",
     "detect_moving_objects",
-    "DetectedObject",
+    # ROI management
+    "ROI",
+    "ROIManager",
 ]
-
