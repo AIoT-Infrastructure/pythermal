@@ -34,3 +34,5 @@ ENV/
 # Test outputs
 *.tseq
 session.tseq
+
+*.log
