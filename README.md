@@ -316,6 +316,20 @@ pythermal-devkit/
 
 ---
 
+## 📚 References
+
+```
+@inproceedings{zeng2025thermikit,
+  title={ThermiKit: Edge-Optimized LWIR Analytics with Agent-Driven Interactions},
+  author={Zeng, Lan and Huang, Chunhao and Xie, Ruihan and Huang, Zhuohan and Guo, Yunqi and He, Lixing and Xie, Zhiyuan and Xing, Guoliang},
+  booktitle={Proceedings of the 2025 ACM International Workshop on Thermal Sensing and Computing},
+  pages={40--46},
+  year={2025}
+}
+```
+
+---
+
 ## 📄 License
 
 This library is released under the **Apache 2.0 License** for research and non-commercial use.
@@ -325,10 +339,5 @@ Only the compiled native library (`.so`) is shipped; no vendor source or headers
 
 ## 💡 Acknowledgements
 
-Developed by **AIoT Lab, CUHK**
-
----
-
-## 📧 Contact
-
-To access the thermal devices, please contact **thermal@thingx-tech.com**.
+**🏫 Developed by AIoT Lab, CUHK**  
+**📧 Device Access:** thermal@thingx-tech.com
