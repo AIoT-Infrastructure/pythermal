@@ -63,8 +63,8 @@ install_cross_compiler() {
         return 0
     elif [ "$ARCH" = "amd64" ] || [ "$ARCH" = "x86_64" ]; then
         print_status "Installing ARM cross-compiler for cross-compilation..."
-        sudo apt install -y g++-arm-linux-gnueabihf
-        print_success "ARM cross-compiler installed"
+    sudo apt install -y g++-arm-linux-gnueabihf
+    print_success "ARM cross-compiler installed"
     else
         print_warning "Unknown architecture $ARCH - skipping cross-compiler installation"
         return 0
@@ -98,8 +98,8 @@ install_ffmpeg() {
         
         sudo apt install -y ffmpeg:armhf \
                             libavcodec-dev:armhf libavformat-dev:armhf libavutil-dev:armhf \
-                            libswscale-dev:armhf libswresample-dev:armhf \
-                            libavfilter-dev:armhf libavdevice-dev:armhf libpostproc-dev:armhf
+                        libswscale-dev:armhf libswresample-dev:armhf \
+                        libavfilter-dev:armhf libavdevice-dev:armhf libpostproc-dev:armhf
     else
         # Native installation for other architectures
         print_status "Installing native FFmpeg packages for $ARCH..."
