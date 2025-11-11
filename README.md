@@ -40,14 +40,12 @@ Or from source:
 
 ```bash
 git clone https://github.com/<your-org>/thermal-sensing.git
-cd thermal-sensing
+cd thermal-sensing-devkit
 uv pip install .
 ```
 
 > ✅ **Bundled Native Runtime**
-> The package ships with a prebuilt native library (e.g., `libhikiface_aarch64.so`) under `thermalsense/_native/`.
-> You do **not** need to install vendor headers or a separate SDK at runtime.
-> Only the compiled `.so` is exposed; no Hikvision source or headers are distributed.
+> The package ships with a prebuilt native module for thermal recording (run_thermal_recorder) under `thermalsense/_native/`.
 
 ---
 
