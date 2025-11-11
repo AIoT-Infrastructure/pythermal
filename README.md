@@ -62,7 +62,7 @@ uv pip install pythermal
 Or from source:
 
 ```bash
-git clone https://github.com/<your-org>/pythermal.git
+git clone https://github.com/AIoT-Infrastructure/pythermal.git
 cd pythermal
 uv pip install .
 ```
