@@ -36,3 +36,6 @@ ENV/
 session.tseq
 
 *.log
+
+recordings/
+test_recordings/
