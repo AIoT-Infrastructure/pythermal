@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Setup script for thermal-sensing library
+Setup script for pythermal library
 """
 
 from setuptools import setup, find_packages
@@ -14,7 +14,7 @@ long_description = readme_file.read_text() if readme_file.exists() else ""
 version = "0.1.0"
 
 # Find all native binaries to include
-package_dir = Path(__file__).parent / "thermalsense" / "_native" / "armLinux"
+package_dir = Path(__file__).parent / "pythermal" / "_native" / "armLinux"
 native_files = []
 if package_dir.exists():
     for file in package_dir.iterdir():
@@ -22,17 +22,17 @@ if package_dir.exists():
             native_files.append(str(file.relative_to(Path(__file__).parent)))
 
 setup(
-    name="thermal-sensing",
+    name="pythermal",
     version=version,
     description="A lightweight Python library for thermal sensing and analytics on ARM Linux platforms",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="AIoT Lab, CUHK",
     author_email="yunqiguo@cuhk.edu.hk",
-    url="https://github.com/your-org/thermal-sensing",
+    url="https://github.com/your-org/pythermal",
     packages=find_packages(),
     package_data={
-        "thermalsense": [
+        "pythermal": [
             "_native/armLinux/*",
         ],
     },
@@ -52,7 +52,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "thermalsense-preview=thermalsense.live_view:main",
+            "pythermal-preview=pythermal.live_view:main",
         ],
     },
     classifiers=[

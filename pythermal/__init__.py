@@ -1,5 +1,5 @@
 """
-Thermal Sensing Library
+PyThermal - A lightweight Python library for thermal sensing and analytics.
 
 A lightweight Python library for thermal sensing and analytics on ARM Linux platforms.
 """
@@ -18,4 +18,3 @@ __all__ = [
     "ThermalRecorder",
     "ThermalLiveView",
 ]
-

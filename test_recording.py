@@ -9,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from thermalsense import ThermalRecorder
+from pythermal import ThermalRecorder
 
 def test_recording():
     """Test recording functionality"""

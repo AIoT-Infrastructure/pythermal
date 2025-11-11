@@ -1,4 +1,4 @@
-# 🔥 Thermal Sensing Library
+# 🔥 PyThermal
 
 **A lightweight Python library for thermal sensing and analytics on ARM Linux platforms.**
 It provides unified APIs for recording, visualization, and intelligent analysis of thermal data from Hikvision or compatible infrared sensors.
@@ -38,14 +38,14 @@ It provides unified APIs for recording, visualization, and intelligent analysis 
 Before installing the Python package, you need to set up the thermal camera permissions and native runtime:
 
 ```bash
-cd thermal-sensing-devkit
+cd pythermal-devkit
 ./setup.sh
 ```
 
 This script will:
 1. Install required system dependencies (cross-compiler, FFmpeg libraries)
 2. Set up USB device permissions for the thermal camera
-3. Compile the native thermal recorder (`run_thermal_recorder`)
+3. Compile the native thermal recorder (`pythermal-recorder`)
 
 After running `setup.sh`, you may need to:
 - Disconnect and reconnect your thermal camera
@@ -56,19 +56,19 @@ After running `setup.sh`, you may need to:
 Install directly on an ARM Linux device (e.g., Jetson, OrangePi, Raspberry Pi):
 
 ```bash
-uv pip install thermal-sensing
+uv pip install pythermal
 ```
 
 Or from source:
 
 ```bash
-git clone https://github.com/<your-org>/thermal-sensing.git
-cd thermal-sensing-devkit
+git clone https://github.com/<your-org>/pythermal.git
+cd pythermal-devkit
 uv pip install .
 ```
 
 > ✅ **Bundled Native Runtime**
-> The package ships with the native thermal recorder (`run_thermal_recorder`) and required shared libraries (`.so` files) under `thermalsense/_native/armLinux/`.
+> The package ships with the native thermal recorder (`pythermal-recorder`) and required shared libraries (`.so` files) under `pythermal/_native/armLinux/`.
 
 ---
 
@@ -76,14 +76,14 @@ uv pip install .
 
 ### 1. Initialize Thermal Device
 
-The `ThermalDevice` class manages the thermal camera initialization by starting `run_thermal_recorder` in a separate process and providing access to thermal data via shared memory.
+The `ThermalDevice` class manages the thermal camera initialization by starting `pythermal-recorder` in a separate process and providing access to thermal data via shared memory.
 
 ```python
-from thermalsense import ThermalDevice
+from pythermal import ThermalDevice
 
 # Create and start thermal device
 device = ThermalDevice()
-device.start()  # Starts run_thermal_recorder subprocess and initializes shared memory
+device.start()  # Starts pythermal-recorder subprocess and initializes shared memory
 
 # Access shared memory for reading thermal data
 shm = device.get_shared_memory()
@@ -108,7 +108,7 @@ with ThermalDevice() as device:
 Display real-time thermal imaging feed:
 
 ```python
-from thermalsense import ThermalLiveView
+from pythermal import ThermalLiveView
 
 viewer = ThermalLiveView()
 viewer.run()  # Opens OpenCV window with live thermal feed
@@ -117,7 +117,7 @@ viewer.run()  # Opens OpenCV window with live thermal feed
 Or with a shared device:
 
 ```python
-from thermalsense import ThermalDevice, ThermalLiveView
+from pythermal import ThermalDevice, ThermalLiveView
 
 device = ThermalDevice()
 device.start()
@@ -138,7 +138,7 @@ device.stop()
 ### 3. Record Thermal Frames
 
 ```python
-from thermalsense import ThermalRecorder
+from pythermal import ThermalRecorder
 import time
 
 rec = ThermalRecorder(output_dir="recordings", color=True)
@@ -158,7 +158,7 @@ This records both:
 ### 4. Access Thermal Data Directly
 
 ```python
-from thermalsense import ThermalDevice, ThermalSharedMemory
+from pythermal import ThermalDevice, ThermalSharedMemory
 
 device = ThermalDevice()
 device.start()
@@ -192,12 +192,12 @@ device.stop()
 
 | Command                | Description                                     |
 | ---------------------- | ----------------------------------------------- |
-| `thermalsense-preview` | Live preview with temperature overlay           |
+| `pythermal-preview` | Live preview with temperature overlay           |
 
 Example:
 
 ```bash
-thermalsense-preview
+pythermal-preview
 ```
 
 This will start the thermal device and display a live view window.
@@ -230,15 +230,15 @@ This will start the thermal device and display a live view window.
 
 ### Native Runtime
 
-The library uses a native binary (`run_thermal_recorder`) that runs as a separate process and writes thermal data to shared memory (`/dev/shm/yuyv240_shm`). The Python library communicates with this process via shared memory for efficient zero-copy data access.
+The library uses a native binary (`pythermal-recorder`) that runs as a separate process and writes thermal data to shared memory (`/dev/shm/yuyv240_shm`). The Python library communicates with this process via shared memory for efficient zero-copy data access.
 
 ### Bundled Files
 
-The package includes the following native files under `thermalsense/_native/armLinux/`:
+The package includes the following native files under `pythermal/_native/armLinux/`:
 
 ```
-thermalsense/_native/armLinux/
-├── run_thermal_recorder      # Main thermal recorder executable
+pythermal/_native/armLinux/
+├── pythermal-recorder      # Main thermal recorder executable
 ├── libHCUSBSDK.so            # Hikvision USB SDK library
 ├── libhpr.so                 # Hikvision processing library
 ├── libusb-1.0.so*            # USB library dependencies
@@ -267,17 +267,17 @@ FRAME_SZ+TEMP   ...             Metadata:
 ### Process Management
 
 The `ThermalDevice` class:
-1. Starts `run_thermal_recorder` as a subprocess
+1. Starts `pythermal-recorder` as a subprocess
 2. Waits for shared memory to become available
 3. Provides access to thermal data via `ThermalSharedMemory`
 4. Automatically cleans up the process on exit
 
 ### Troubleshooting
 
-* **`FileNotFoundError: run_thermal_recorder not found`**
+* **`FileNotFoundError: pythermal-recorder not found`**
   Make sure you've run `setup.sh` to compile the native binaries, and that the package was installed correctly.
 
-* **`PermissionError: run_thermal_recorder is not executable`**
+* **`PermissionError: pythermal-recorder is not executable`**
   Run `chmod +x` on the executable, or reinstall the package.
 
 * **`TimeoutError: Shared memory did not become available`**
@@ -297,8 +297,8 @@ The `ThermalDevice` class:
 ## 📦 Directory Structure
 
 ```
-thermal-sensing-devkit/
-├── thermalsense/
+pythermal-devkit/
+├── pythermal/
 │   ├── __init__.py
 │   ├── device.py              # ThermalDevice class (manages subprocess)
 │   ├── thermal_shared_memory.py  # Shared memory reader
@@ -306,7 +306,7 @@ thermal-sensing-devkit/
 │   ├── live_view.py           # ThermalLiveView class
 │   └── _native/
 │       └── armLinux/
-│           ├── run_thermal_recorder
+│           ├── pythermal-recorder
 │           └── *.so            # Native libraries
 ├── setup.sh                   # Setup script for permissions and compilation
 ├── setup-thermal-permissions.sh

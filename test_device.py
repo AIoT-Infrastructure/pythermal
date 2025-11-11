@@ -10,7 +10,7 @@ from pathlib import Path
 # Add the package to path for testing
 sys.path.insert(0, str(Path(__file__).parent))
 
-from thermalsense import ThermalDevice, ThermalSharedMemory
+from pythermal import ThermalDevice, ThermalSharedMemory
 
 def test_device_initialization():
     """Test 1: Device initialization"""

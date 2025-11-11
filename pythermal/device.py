@@ -2,7 +2,7 @@
 """
 Thermal Device Manager
 
-Manages the thermal camera device initialization by starting run_thermal_recorder
+Manages the thermal camera device initialization by starting pythermal-recorder
 in a separate process and providing access to thermal data via shared memory.
 """
 
@@ -20,7 +20,7 @@ class ThermalDevice:
     """
     Manages thermal camera device initialization and shared memory access.
     
-    This class starts the run_thermal_recorder process in the background and
+    This class starts the pythermal-recorder process in the background and
     provides access to thermal data through the shared memory interface.
     """
     
@@ -29,7 +29,7 @@ class ThermalDevice:
         Initialize thermal device manager.
         
         Args:
-            native_dir: Optional path to native directory containing run_thermal_recorder.
+            native_dir: Optional path to native directory containing pythermal-recorder.
                        If None, uses default package location.
         """
         if native_dir is None:
@@ -39,7 +39,7 @@ class ThermalDevice:
         else:
             self.native_dir = Path(native_dir)
         
-        self.recorder_path = self.native_dir / "run_thermal_recorder"
+        self.recorder_path = self.native_dir / "pythermal-recorder"
         self.process: Optional[subprocess.Popen] = None
         self.shm_reader = ThermalSharedMemory()
         self._is_running = False
@@ -63,13 +63,13 @@ class ThermalDevice:
         # Check if recorder executable exists
         if not self.recorder_path.exists():
             raise FileNotFoundError(
-                f"run_thermal_recorder not found at {self.recorder_path}. "
+                f"pythermal-recorder not found at {self.recorder_path}. "
                 "Make sure the native binaries are installed."
             )
         
         if not os.access(self.recorder_path, os.X_OK):
             raise PermissionError(
-                f"run_thermal_recorder is not executable: {self.recorder_path}"
+                f"pythermal-recorder is not executable: {self.recorder_path}"
             )
         
         # Start the recorder process
