@@ -2,7 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
-# *.so
+*.so
 .Python
 build/
 develop-eggs/
@@ -19,23 +19,34 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
 # Virtual environments
 .venv/
 venv/
 ENV/
+env/
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*.sublime-project
+*.sublime-workspace
 
 # Test outputs
 *.tseq
 session.tseq
-
-*.log
-
+*.mp4
+*.npy
 recordings/
 test_recordings/
+
+# Logs
+*.log
+USBSDKLog/
+
+# OS
+.DS_Store
+Thumbs.db
