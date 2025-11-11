@@ -326,3 +326,9 @@ Only the compiled native library (`.so`) is shipped; no vendor source or headers
 ## 💡 Acknowledgements
 
 Developed by **AIoT Lab, CUHK**
+
+---
+
+## 📧 Contact
+
+To access the thermal devices, please contact **thermal@thingx-tech.com**.
