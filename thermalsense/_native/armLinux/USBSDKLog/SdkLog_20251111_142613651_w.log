@@ -1,0 +1,88 @@
+LogParam, UseCfgFile[0], LogMod=Cover(AutoDel=TRUE), LogIndex[1], LogLevel[3], ZipFine[1], MaxLogFileReserved[50], LogCallBack[0x0], LogCallbackLevel[0]
+Zlib: m_fnZlibVersion[1.3], m_szCurZlibVersion[1.3], m_szCurZlibPath[/lib/aarch64-linux-gnu/libz.so]
+OpenSSL: m_fnSSLeayVersion[0x0], m_fnOpenSSLVersion[0x0] Unload
+CoreBase: MemInfo, UseMemPool[1]
+CoreBase: ThreadInfo, ENUM_COREBASE_THREADPOOL_DEFAULT, dwMaxCount[128]
+CoreBase: ThreadInfo, ENUM_COREBASE_THREADPOOL_MSGCB, dwMaxCount[10]
+CoreBase: ThreadInfo, ENUM_COREBASE_THREADPOOL_SERVERLINK, dwMaxCount[10]
+CoreBase: ThreadInfo, ENUM_COREBASE_THREADPOOL_TIMERPROXY, dwMaxCount[64]
+CoreBase: ThreadInfo, ENUM_COREBASE_THREADPOOL_ASYNCIO, dwMaxCount[64]
+CoreBase: AbilityInfo, dwMaxMqttConnection[40960]
+[2025-11-11 14:26:13.651][INF] aarch64-linux-gnu(x86_64-unknown-linux-gnu) HCUSBSDK Version is 2.5.0.3 build20240423
+[2025-11-11 14:26:13.651][INF] ------------------------------------------------USB_GetDeviceCount in------------------------------------------------
+[2025-11-11 14:26:13.651][INF] CUsbDeviceManager::DynamicLibLoad 1 szSetPath[]
+[2025-11-11 14:26:13.651][INF] DynamicLoadBase::LoadDSo, HPR_LoadDSo succ, LoadPath[/home/parallels/Project/thermal-sensing-devkit/thermalsense/_native/armLinux/libusb-1.0.so]
+[2025-11-11 14:26:13.651][INF] ---------------------------------------------------Libusb---------------------------------------------------
+[2025-11-11 14:26:13.651][INF] CUsbDriverLibusb::GetDevices() dwVid[0x203a] dwPid[0xfffc] m_byRealCount[1] byEndpointIn[129] byEndpointOut[0]
+[2025-11-11 14:26:13.652][INF] CUsbDriverLibusb::GetDevices() dwVid[0x203a] dwPid[0xfff9] m_byRealCount[2] byEndpointIn[131] byEndpointOut[0]
+[2025-11-11 14:26:13.652][INF] CUsbDriverLibusb::GetDevices() dwVid[0x25a4] dwPid[0x9311] m_byRealCount[3] byEndpointIn[0] byEndpointOut[0]
+[2025-11-11 14:26:13.652][INF] CUsbDriverLibusb::GetDevices() dwVid[0x2bdf] dwPid[0x0102] m_byRealCount[4] byEndpointIn[131] byEndpointOut[0]
+[2025-11-11 14:26:13.652][INF] CUsbDriverLibusb::GetDevices() dwVid[0x203a] dwPid[0xfffe] m_byRealCount[5] byEndpointIn[129] byEndpointOut[0]
+[2025-11-11 14:26:13.652][INF] CUsbDriverLibusb::GetDevices() dwVid[0x1d6b] dwPid[0x0002] m_byRealCount[6] byEndpointIn[129] byEndpointOut[0]
+[2025-11-11 14:26:13.652][INF] CUsbDriverLibusb::GetDevices() dwVid[0x203a] dwPid[0xfffb] m_byRealCount[7] byEndpointIn[129] byEndpointOut[0]
+[2025-11-11 14:26:13.652][INF] CUsbDriverLibusb::GetDevices() dwVid[0x1908] dwPid[0x0226] m_byRealCount[8] byEndpointIn[129] byEndpointOut[1]
+[2025-11-11 14:26:13.652][INF] CUsbDriverLibusb::GetDevices() dwVid[0x203a] dwPid[0xfff9] m_byRealCount[9] byEndpointIn[131] byEndpointOut[0]
+[2025-11-11 14:26:13.652][INF] CUsbDriverLibusb::GetDevices() dwVid[0x1d6b] dwPid[0x0002] m_byRealCount[10] byEndpointIn[129] byEndpointOut[0]
+[2025-11-11 14:26:13.652][INF] CUsbDriverLibusb::GetDevices() dwVid[0x1d6b] dwPid[0x0003] m_byRealCount[11] byEndpointIn[129] byEndpointOut[0]
+[2025-11-11 14:26:13.652][INF] ---------------------------------------------------Libusb---------------------------------------------------
+[2025-11-11 14:26:13.652][INF] CUsbDeviceManager::DynamicLibLoad 1 szSetPath[]
+[2025-11-11 14:26:13.652][INF] CUsbDeviceManager::DynamicLibLoad 1 szSetPath[]
+[2025-11-11 14:26:13.652][INF] DynamicLoadBase::LoadDSo, HPR_LoadDSo succ, LoadPath[/home/parallels/Project/thermal-sensing-devkit/thermalsense/_native/armLinux/libuvc.so]
+[2025-11-11 14:26:13.652][INF] CUsbDriverLibuvc::Init, UvcInit success[0]
+[2025-11-11 14:26:13.652][INF] ---------------------------------------------------Libuvc---------------------------------------------------
+[2025-11-11 14:26:13.675][INF] CUsbDriverLibuvc::EnumDveices, uvc_find_devices success[0]
+[2025-11-11 14:26:13.699][INF] CUsbDriverLibuvc::EnumDevices, dwVid[0x203A] dwPid[0xFFF9] pDev[0x501db160] pDevAudioHandle[0x0]
+[2025-11-11 14:26:13.699][INF] CUsbDriverLibuvc::EnumDevices, dwVid[0x2BDF] dwPid[0x0102] pDev[0x501db180] pDevAudioHandle[0x0]
+[2025-11-11 14:26:13.699][INF] CUsbDriverLibuvc::EnumDevices, dwVid[0x203A] dwPid[0xFFF9] pDev[0x501db2a0] pDevAudioHandle[0x0]
+[2025-11-11 14:26:13.699][INF] ---------------------------------------------------Libuvc---------------------------------------------------
+[2025-11-11 14:26:13.699][INF] ---------------------------------------------------ACS---------------------------------------------------
+[2025-11-11 14:26:13.699][INF] CUsbDeviceFilter::FilterAcsWithID, iResultCount[0]
+[2025-11-11 14:26:13.699][INF] CUsbDeviceBuilder::FilerAndCreateAcsDevices, Acs deivce num[0]
+[2025-11-11 14:26:13.699][INF] ---------------------------------------------------ACS---------------------------------------------------
+[2025-11-11 14:26:13.699][INF] ---------------------------------------------------ACS Uvc---------------------------------------------------
+[2025-11-11 14:26:13.699][INF] CUsbDeviceFilter::FilterAcsUVCWithID, iResultCount[0]
+[2025-11-11 14:26:13.699][INF] CUsbDeviceBuilder::FilerAndCreateAcsUvcDevices, Acs Uvc deivce num[0]
+[2025-11-11 14:26:13.699][INF] ---------------------------------------------------ACS Uvc---------------------------------------------------
+[2025-11-11 14:26:13.699][INF] ---------------------------------------------------Transmission Bulk---------------------------------------------------
+[2025-11-11 14:26:13.699][INF] CUsbDeviceFilter::FilterTransmissionHIDWithID, iResultCount[0]
+[2025-11-11 14:26:13.699][INF] CUsbDeviceBuilder::FilerAndCreateTransmissionBulkDevices, Transmission bulk deivce num[0]
+[2025-11-11 14:26:13.699][INF] ---------------------------------------------------Transmission Bulk---------------------------------------------------
+[2025-11-11 14:26:13.699][INF] ---------------------------------------------------Transmission Uvc---------------------------------------------------
+[2025-11-11 14:26:13.699][INF] CUsbDeviceFilter::FilterTransmissionWithID, iResultCount[0]
+[2025-11-11 14:26:13.699][INF] CUsbDeviceBuilder::FilerAndCreateTransmissionUvcDevices, Transmission bulk deivce num[0]
+[2025-11-11 14:26:13.699][INF] ---------------------------------------------------Transmission Uvc---------------------------------------------------
+[2025-11-11 14:26:13.699][INF] ---------------------------------------------------Thermal---------------------------------------------------
+[2025-11-11 14:26:13.699][INF] CUsbDeviceFilter::FilterThermalWithID, USB_THERMAL_UVC_TYPE dwVid[0x2BDF] dwPid[0x0102]
+[2025-11-11 14:26:13.699][INF] CUsbDeviceFilter::FilterThermalWithID, iResultCount[1]
+[2025-11-11 14:26:13.722][ERR] CUsbDriverLibuvc::Open(HPR_VOIDPTR pDev, HPR_VOIDPTR &pHandle), uvc_open failed [-6]  syserr[16] pDev[0x501db180] pHandle[0x0]
+[2025-11-11 14:26:13.722][ERR] CUsbDeviceBuilder::InitDeviceInfo() -failed to open device descriptor:13
+[2025-11-11 14:26:13.722][INF] CUsbDeviceBuilder::FilerAndCreateThermalDevices, Thermal deivce num[1]
+[2025-11-11 14:26:13.722][INF] ---------------------------------------------------Thermal---------------------------------------------------
+[2025-11-11 14:26:13.722][INF] ---------------------------------------------------Camera---------------------------------------------------
+[2025-11-11 14:26:13.722][INF] CUsbDeviceFilter::FilterCameraWithID, iResultCount[0]
+[2025-11-11 14:26:13.722][INF] CUsbDeviceBuilder::FilerAndCreateCameraDevices, Camera deivce num[0]
+[2025-11-11 14:26:13.722][INF] ---------------------------------------------------Camera---------------------------------------------------
+[2025-11-11 14:26:13.722][INF] ---------------------------------------------------Standard Uvc---------------------------------------------------
+[2025-11-11 14:26:13.723][ERR] CUsbDriverLibuvc::Open(HPR_VOIDPTR pDev, HPR_VOIDPTR &pHandle), uvc_open failed [-3]  syserr[13] pDev[0x501db160] pHandle[0x0]
+[2025-11-11 14:26:13.723][ERR] CUsbDeviceBuilder::InitDeviceInfo() -failed to open device descriptor:4
+[2025-11-11 14:26:13.723][ERR] CUsbDriverLibuvc::Open(HPR_VOIDPTR pDev, HPR_VOIDPTR &pHandle), uvc_open failed [-3]  syserr[13] pDev[0x501db2a0] pHandle[0x0]
+[2025-11-11 14:26:13.723][ERR] CUsbDeviceBuilder::InitDeviceInfo() -failed to open device descriptor:4
+[2025-11-11 14:26:13.723][INF] CUsbDeviceBuilder::FilerAndCreateStandardUvcDevices, Standard uvc deivce num[2]
+[2025-11-11 14:26:13.723][INF] ---------------------------------------------------Standard Uvc---------------------------------------------------
+[2025-11-11 14:26:13.723][INF] ------------------------------------------------Devices List------------------------------------------------
+[2025-11-11 14:26:13.723][INF] ------------------------------------------------Devices List------------------------------------------------
+[2025-11-11 14:26:13.723][INF] ------------------------------------------------USB_GetDeviceCount out------------------------------------------------
+[2025-11-11 14:26:13.723][INF] ------------------------------------------------USB_Cleanup------------------------------------------------
+[2025-11-11 14:26:13.723][INF] CUsbDeviceBuilder::Unload(), safe_delete kLibusb
+[2025-11-11 14:26:13.723][INF] CUsbDeviceBuilder::Unload(), safe_delete kLibuvc
+[2025-11-11 14:26:13.723][INF] CUsbDeviceBuilder::Unload(), safe_delete kDirectShow
+[2025-11-11 14:26:13.723][INF] CUsbDeviceBuilder::Unload(), safe_delete kAudioDirectShow
+[2025-11-11 14:26:13.723][INF] CUsbDeviceBuilder::Unload(), safe_delete kVideoDirectShow
+[2025-11-11 14:26:13.723][INF] CUsbDeviceBuilder::Unload(), safe_delete kHCuvc
+[2025-11-11 14:26:13.723][DBG] ~DynamicLoadBase::UnloadLib SUCC
+[2025-11-11 14:26:13.723][DBG] ~DynamicLoadBase::UnloadLib SUCC
+[2025-11-11 14:26:13.723][DBG] ~DynamicLoadBase::UnloadLib SUCC
+[2025-11-11 14:26:13.723][DBG] ~DynamicLoadBase::UnloadLib SUCC
+[2025-11-11 14:26:13.723][DBG] ~DynamicLoadBase::UnloadLib SUCC
+[2025-11-11 14:26:13.723][DBG] ~DynamicLoadBase::UnloadLib SUCC
+[2025-11-11 14:26:13.724][DBG] CCoreGlobalCtrlBase::TimerThread, Last Log Print

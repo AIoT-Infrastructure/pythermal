@@ -13,21 +13,29 @@ import time
 from datetime import datetime
 from typing import Optional
 
-from thermal_shared_memory import (
+from .thermal_shared_memory import (
     ThermalSharedMemory,
     WIDTH,
     HEIGHT,
     TEMP_WIDTH,
     TEMP_HEIGHT
 )
+from .device import ThermalDevice
 
 
 class ThermalLiveView:
     """Live view display for thermal camera - original grayscale only"""
     
-    def __init__(self):
-        """Initialize thermal live view"""
-        self.shm_reader = ThermalSharedMemory()
+    def __init__(self, device: Optional[ThermalDevice] = None):
+        """
+        Initialize thermal live view.
+        
+        Args:
+            device: Optional ThermalDevice instance. If None, creates a new one.
+        """
+        self.device = device
+        self._device_owned = device is None  # Track if we created the device
+        self.shm_reader: Optional[ThermalSharedMemory] = None
         self.frame_count = 0
         self.last_fps_time = time.time()
         self.fps = 0.0
@@ -42,10 +50,19 @@ class ThermalLiveView:
         
     def initialize_shared_memory(self) -> bool:
         """Initialize shared memory connection"""
-        if not self.shm_reader.initialize():
-            print(f"Error: Shared memory file not found: {self.shm_reader.shm_name}")
-            print("Make sure the thermal capture system is running.")
-            return False
+        # Create device if not provided
+        if self.device is None:
+            self.device = ThermalDevice()
+        
+        # Start device if not running
+        if not self.device.is_running():
+            if not self.device.start():
+                print("Error: Failed to start thermal device")
+                print("Make sure the thermal camera is connected and permissions are set up.")
+                return False
+        
+        # Get shared memory reader
+        self.shm_reader = self.device.get_shared_memory()
         
         # Read initial metadata to verify connection
         metadata = self.shm_reader.get_metadata()
@@ -382,8 +399,9 @@ class ThermalLiveView:
     
     def cleanup(self):
         """Cleanup resources"""
-        if self.shm_reader:
-            self.shm_reader.cleanup()
+        # Cleanup device only if we created it
+        if self.device is not None and self._device_owned:
+            self.device.cleanup()
         cv2.destroyAllWindows()
         print("Live view stopped")
 

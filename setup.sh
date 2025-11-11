@@ -54,22 +54,60 @@ update_packages() {
 
 # Function to install cross-compiler
 install_cross_compiler() {
-    print_status "Installing ARM cross-compiler..."
-    sudo apt install -y g++-arm-linux-gnueabihf
-    print_success "ARM cross-compiler installed"
+    # Detect architecture
+    ARCH=$(dpkg --print-architecture)
+    
+    if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
+        print_status "Running on ARM64 - cross-compiler not needed for native builds"
+        print_success "Skipping cross-compiler installation"
+        return 0
+    elif [ "$ARCH" = "amd64" ] || [ "$ARCH" = "x86_64" ]; then
+        print_status "Installing ARM cross-compiler for cross-compilation..."
+        sudo apt install -y g++-arm-linux-gnueabihf
+        print_success "ARM cross-compiler installed"
+    else
+        print_warning "Unknown architecture $ARCH - skipping cross-compiler installation"
+        return 0
+    fi
 }
 
 # Function to install FFmpeg and development libraries
 install_ffmpeg() {
     print_status "Installing FFmpeg and development libraries..."
     
-    # Install main FFmpeg package
-    sudo apt install -y ffmpeg:armhf
+    # Detect architecture
+    ARCH=$(dpkg --print-architecture)
     
-    # Install development libraries
-    sudo apt install -y libavcodec-dev:armhf libavformat-dev:armhf libavutil-dev:armhf \
-                        libswscale-dev:armhf libswresample-dev:armhf \
-                        libavfilter-dev:armhf libavdevice-dev:armhf libpostproc-dev:armhf
+    if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
+        # Native ARM64 installation
+        print_status "Installing native ARM64 FFmpeg packages..."
+        sudo apt install -y ffmpeg \
+                            libavcodec-dev libavformat-dev libavutil-dev \
+                            libswscale-dev libswresample-dev \
+                            libavfilter-dev libavdevice-dev libpostproc-dev
+    elif [ "$ARCH" = "amd64" ] || [ "$ARCH" = "x86_64" ]; then
+        # Cross-compilation: install armhf packages
+        print_status "Installing ARM cross-compilation FFmpeg packages..."
+        
+        # Enable multiarch if not already enabled
+        if ! dpkg --print-foreign-architectures | grep -q armhf; then
+            print_status "Enabling ARMHF multiarch support..."
+            sudo dpkg --add-architecture armhf
+            sudo apt update
+        fi
+        
+        sudo apt install -y ffmpeg:armhf \
+                            libavcodec-dev:armhf libavformat-dev:armhf libavutil-dev:armhf \
+                            libswscale-dev:armhf libswresample-dev:armhf \
+                            libavfilter-dev:armhf libavdevice-dev:armhf libpostproc-dev:armhf
+    else
+        # Native installation for other architectures
+        print_status "Installing native FFmpeg packages for $ARCH..."
+        sudo apt install -y ffmpeg \
+                            libavcodec-dev libavformat-dev libavutil-dev \
+                            libswscale-dev libswresample-dev \
+                            libavfilter-dev libavdevice-dev libpostproc-dev
+    fi
     
     print_success "FFmpeg and development libraries installed"
 }
