@@ -62,6 +62,11 @@ setup(
             "black>=22.0.0",
             "flake8>=5.0.0",
         ],
+        "yolo": [
+            # YOLO v11 detection support (object and pose detection)
+            # Install with: pip install pythermal[yolo]
+            "ultralytics>=8.0.0",
+        ],
     },
     entry_points={
         "console_scripts": [

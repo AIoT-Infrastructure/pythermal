@@ -32,6 +32,7 @@ open docs/build/html/index.html  # Mac
 - `source/api/` - API reference documentation
 - `source/examples.rst` - Examples documentation
 - `source/architecture.rst` - Architecture documentation
+- `YOLO_DETECTION.md` - Comprehensive YOLO v11 detection guide (markdown format)
 
 ## Requirements
 
