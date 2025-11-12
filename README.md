@@ -1,6 +1,6 @@
 # 🔥 PyThermal
 
-**A lightweight Python library for thermal sensing and analytics on ARM Linux platforms.**
+**A lightweight Python library for thermal sensing and analytics on Linux platforms (x86_64 and ARM).**
 It provides unified APIs for recording, visualization, and intelligent analysis of thermal data from Hikvision or compatible infrared sensors.
 
 ---
@@ -43,9 +43,9 @@ cd pythermal
 ```
 
 This script will:
-1. Install required system dependencies (cross-compiler, FFmpeg libraries)
+1. Detect your system architecture (x86_64 or ARM) and install required system dependencies (FFmpeg libraries)
 2. Set up USB device permissions for the thermal camera
-3. Compile the native thermal recorder (`pythermal-recorder`)
+3. Compile the native thermal recorder (`pythermal-recorder`) for your architecture
 
 After running `setup.sh`, you may need to:
 - Disconnect and reconnect your thermal camera
@@ -53,7 +53,7 @@ After running `setup.sh`, you may need to:
 
 ### Install Python Package
 
-Install directly on an ARM Linux device (e.g., Jetson, OrangePi, Raspberry Pi):
+Install directly on a Linux device (x86_64 or ARM, e.g., x86_64 desktop, Jetson, OrangePi, Raspberry Pi):
 
 ```bash
 uv pip install pythermal
@@ -68,7 +68,7 @@ uv pip install .
 ```
 
 > ✅ **Bundled Native Runtime**
-> The package ships with the native thermal recorder (`pythermal-recorder`) and required shared libraries (`.so` files) under `pythermal/_native/armLinux/`.
+> The package ships with the native thermal recorder (`pythermal-recorder`) and required shared libraries (`.so` files) for both x86_64 (`pythermal/_native/linux64/`) and ARM (`pythermal/_native/armLinux/`). The library automatically detects your system architecture and uses the appropriate binaries.
 
 ---
 
@@ -292,7 +292,7 @@ This will start the thermal device and display a live view window.
 ## 🧪 Requirements
 
 * Python ≥ 3.9
-* ARM Linux environment (Jetson / OrangePi / Raspberry Pi)
+* Linux environment (x86_64 or ARM, e.g., x86_64 desktop, Jetson, OrangePi, Raspberry Pi)
 * NumPy, OpenCV (auto-installed via pip)
 * Thermal camera connected via USB
 * Proper USB permissions (set up via `setup.sh`)
@@ -307,8 +307,19 @@ The library uses a native binary (`pythermal-recorder`) that runs as a separate 
 
 ### Bundled Files
 
-The package includes the following native files under `pythermal/_native/armLinux/`:
+The package includes native files for both x86_64 and ARM architectures:
 
+**x86_64 (`pythermal/_native/linux64/`):**
+```
+pythermal/_native/linux64/
+├── pythermal-recorder      # Main thermal recorder executable
+├── libHCUSBSDK.so            # Hikvision USB SDK library
+├── libhpr.so                 # Hikvision processing library
+├── libusb-1.0.so*            # USB library dependencies
+└── libuvc.so                  # UVC library
+```
+
+**ARM (`pythermal/_native/armLinux/`):**
 ```
 pythermal/_native/armLinux/
 ├── pythermal-recorder      # Main thermal recorder executable
@@ -317,6 +328,8 @@ pythermal/_native/armLinux/
 ├── libusb-1.0.so*            # USB library dependencies
 └── libuvc.so                  # UVC library
 ```
+
+The library automatically detects your system architecture and loads the appropriate binaries.
 
 ### Shared Memory Layout
 
@@ -384,7 +397,10 @@ pythermal/
 │   │   ├── motion_detection.py       # Background subtraction and motion detection
 │   │   └── roi.py             # ROI management and zone monitoring
 │   └── _native/
-│       └── armLinux/
+│       ├── linux64/           # x86_64 binaries
+│       │   ├── pythermal-recorder
+│       │   └── *.so            # Native libraries
+│       └── armLinux/          # ARM binaries
 │           ├── pythermal-recorder
 │           └── *.so            # Native libraries
 ├── examples/                  # Example scripts
