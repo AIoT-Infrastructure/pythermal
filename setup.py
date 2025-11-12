@@ -26,18 +26,22 @@ long_description = readme_file.read_text() if readme_file.exists() else ""
 # Get version from package
 version = "0.1.5"
 
-# Find all native binaries to include
-package_dir = Path(__file__).parent / "pythermal" / "_native" / "armLinux"
+# Find all native binaries to include (both architectures)
+native_base = Path(__file__).parent / "pythermal" / "_native"
 native_files = []
-if package_dir.exists():
-    for file in package_dir.iterdir():
-        if file.is_file():
-            native_files.append(str(file.relative_to(Path(__file__).parent)))
+
+# Include files from both linux64 and armLinux directories
+for arch_dir in ["linux64", "armLinux"]:
+    arch_path = native_base / arch_dir
+    if arch_path.exists():
+        for file in arch_path.iterdir():
+            if file.is_file():
+                native_files.append(str(file.relative_to(Path(__file__).parent)))
 
 setup(
     name="pythermal",
     version=version,
-    description="A lightweight Python library for thermal sensing and analytics on ARM Linux platforms",
+    description="A lightweight Python library for thermal sensing and analytics on Linux platforms",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="ThermalCare Team",
@@ -46,6 +50,7 @@ setup(
     packages=find_packages(),
     package_data={
         "pythermal": [
+            "_native/linux64/*",
             "_native/armLinux/*",
         ],
     },

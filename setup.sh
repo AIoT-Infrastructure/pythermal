@@ -45,6 +45,51 @@ check_sudo() {
     fi
 }
 
+# Function to detect architecture and set directory names
+detect_architecture() {
+    # Detect architecture using multiple methods
+    if command -v dpkg &> /dev/null; then
+        ARCH=$(dpkg --print-architecture)
+    elif command -v uname &> /dev/null; then
+        ARCH=$(uname -m)
+    else
+        print_error "Cannot detect architecture. Please install dpkg or ensure uname is available."
+        exit 1
+    fi
+    
+    # Normalize architecture names
+    case "$ARCH" in
+        "amd64"|"x86_64")
+            ARCH_DIR="linux64"
+            IS_X86_64=true
+            IS_ARM=false
+            print_status "Detected x86_64 architecture - using linux64 directory"
+            ;;
+        "arm64"|"aarch64")
+            ARCH_DIR="armLinux"
+            IS_X86_64=false
+            IS_ARM=true
+            print_status "Detected ARM64 architecture - using armLinux directory"
+            ;;
+        "armhf"|"armv7l")
+            ARCH_DIR="armLinux"
+            IS_X86_64=false
+            IS_ARM=true
+            print_status "Detected ARM architecture - using armLinux directory"
+            ;;
+        *)
+            print_warning "Unknown architecture: $ARCH - defaulting to armLinux"
+            ARCH_DIR="armLinux"
+            IS_X86_64=false
+            IS_ARM=true
+            ;;
+    esac
+    
+    export ARCH_DIR
+    export IS_X86_64
+    export IS_ARM
+}
+
 # Function to update package list
 update_packages() {
     print_status "Updating package list..."
@@ -54,19 +99,16 @@ update_packages() {
 
 # Function to install cross-compiler
 install_cross_compiler() {
-    # Detect architecture
-    ARCH=$(dpkg --print-architecture)
-    
-    if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
-        print_status "Running on ARM64 - cross-compiler not needed for native builds"
+    if [ "$IS_ARM" = true ]; then
+        print_status "Running on ARM - cross-compiler not needed for native builds"
         print_success "Skipping cross-compiler installation"
         return 0
-    elif [ "$ARCH" = "amd64" ] || [ "$ARCH" = "x86_64" ]; then
-        print_status "Installing ARM cross-compiler for cross-compilation..."
-    sudo apt install -y g++-arm-linux-gnueabihf
-    print_success "ARM cross-compiler installed"
+    elif [ "$IS_X86_64" = true ]; then
+        print_status "Running on x86_64 - cross-compiler not needed for native builds"
+        print_success "Skipping cross-compiler installation"
+        return 0
     else
-        print_warning "Unknown architecture $ARCH - skipping cross-compiler installation"
+        print_warning "Unknown architecture - skipping cross-compiler installation"
         return 0
     fi
 }
@@ -75,34 +117,21 @@ install_cross_compiler() {
 install_ffmpeg() {
     print_status "Installing FFmpeg and development libraries..."
     
-    # Detect architecture
-    ARCH=$(dpkg --print-architecture)
-    
-    if [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
-        # Native ARM64 installation
-        print_status "Installing native ARM64 FFmpeg packages..."
+    if [ "$IS_ARM" = true ] || [ "$IS_X86_64" = true ]; then
+        # Native installation for detected architectures
+        if [ "$IS_X86_64" = true ]; then
+            print_status "Installing native x86_64 FFmpeg packages..."
+        else
+            print_status "Installing native ARM FFmpeg packages..."
+        fi
+        
         sudo apt install -y ffmpeg \
                             libavcodec-dev libavformat-dev libavutil-dev \
                             libswscale-dev libswresample-dev \
                             libavfilter-dev libavdevice-dev libpostproc-dev
-    elif [ "$ARCH" = "amd64" ] || [ "$ARCH" = "x86_64" ]; then
-        # Cross-compilation: install armhf packages
-        print_status "Installing ARM cross-compilation FFmpeg packages..."
-        
-        # Enable multiarch if not already enabled
-        if ! dpkg --print-foreign-architectures | grep -q armhf; then
-            print_status "Enabling ARMHF multiarch support..."
-            sudo dpkg --add-architecture armhf
-            sudo apt update
-        fi
-        
-        sudo apt install -y ffmpeg:armhf \
-                            libavcodec-dev:armhf libavformat-dev:armhf libavutil-dev:armhf \
-                        libswscale-dev:armhf libswresample-dev:armhf \
-                        libavfilter-dev:armhf libavdevice-dev:armhf libpostproc-dev:armhf
     else
         # Native installation for other architectures
-        print_status "Installing native FFmpeg packages for $ARCH..."
+        print_status "Installing native FFmpeg packages..."
         sudo apt install -y ffmpeg \
                             libavcodec-dev libavformat-dev libavutil-dev \
                             libswscale-dev libswresample-dev \
@@ -131,14 +160,14 @@ setup_usb_permissions() {
 
 # Function to compile the thermal recorder
 compile_thermal_recorder() {
-    print_status "Compiling thermal recorder..."
+    print_status "Compiling thermal recorder for $ARCH_DIR..."
     
-    if [[ ! -d "demo/armLinux" ]]; then
-        print_error "demo/armLinux directory not found"
+    if [[ ! -d "demo/$ARCH_DIR" ]]; then
+        print_error "demo/$ARCH_DIR directory not found"
         exit 1
     fi
     
-    cd demo/armLinux
+    cd demo/$ARCH_DIR
     make clean && make
     cd ../..
     
@@ -149,19 +178,19 @@ compile_thermal_recorder() {
 verify_installation() {
     print_status "Verifying installation..."
     
-    if [[ -f "library/armLinux/thermal_recorder" ]]; then
+    if [[ -f "library/$ARCH_DIR/thermal_recorder" ]]; then
         print_success "thermal_recorder executable found"
     else
-        print_error "thermal_recorder executable not found"
+        print_error "thermal_recorder executable not found at library/$ARCH_DIR/thermal_recorder"
         exit 1
     fi
     
     # Check if executable has proper permissions
-    if [[ -x "library/armLinux/thermal_recorder" ]]; then
+    if [[ -x "library/$ARCH_DIR/thermal_recorder" ]]; then
         print_success "thermal_recorder is executable"
     else
         print_warning "Making thermal_recorder executable..."
-        chmod +x library/armLinux/thermal_recorder
+        chmod +x library/$ARCH_DIR/thermal_recorder
     fi
 }
 
@@ -172,11 +201,13 @@ show_final_instructions() {
     print_success "HK SDK Setup Complete!"
     echo "==============================================="
     echo ""
+    print_status "Architecture: $ARCH_DIR"
+    echo ""
     print_status "Next Steps:"
     echo "1. Disconnect and reconnect your thermal camera"
     echo "2. Log out and log back in (or restart your system)"
-    echo "3. Navigate to the library/armLinux directory:"
-    echo "   cd library/armLinux/"
+    echo "3. Navigate to the library/$ARCH_DIR directory:"
+    echo "   cd library/$ARCH_DIR/"
     echo "4. Run the thermal recorder:"
     echo "   ./thermal_recorder"
     echo ""
@@ -197,6 +228,10 @@ main() {
     
     check_root
     check_sudo
+    
+    # Detect architecture first
+    detect_architecture
+    echo ""
     
     print_status "Starting HK SDK installation..."
     echo ""
