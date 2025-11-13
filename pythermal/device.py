@@ -7,6 +7,7 @@ in a separate process and providing access to thermal data via shared memory.
 """
 
 import os
+import platform
 import subprocess
 import time
 import signal
@@ -14,6 +15,27 @@ import atexit
 from pathlib import Path
 from typing import Optional
 from .thermal_shared_memory import ThermalSharedMemory
+
+
+def _detect_native_directory() -> str:
+    """
+    Detect the system architecture and return the appropriate native directory name.
+    
+    Returns:
+        Directory name: 'linux64' for x86_64/amd64, 'armLinux' for ARM architectures
+    """
+    machine = platform.machine().lower()
+    
+    # Check for x86_64 architectures
+    if machine in ('x86_64', 'amd64'):
+        return 'linux64'
+    
+    # Check for ARM architectures
+    if machine in ('arm64', 'aarch64', 'armhf', 'armv7l', 'armv6l'):
+        return 'armLinux'
+    
+    # Default to armLinux for unknown architectures (backward compatibility)
+    return 'armLinux'
 
 
 class ThermalDevice:
@@ -33,9 +55,10 @@ class ThermalDevice:
                        If None, uses default package location.
         """
         if native_dir is None:
-            # Default to package location
+            # Default to package location - detect architecture automatically
             package_dir = Path(__file__).parent
-            self.native_dir = package_dir / "_native" / "armLinux"
+            arch_dir = _detect_native_directory()
+            self.native_dir = package_dir / "_native" / arch_dir
         else:
             self.native_dir = Path(native_dir)
         

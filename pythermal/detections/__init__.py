@@ -5,6 +5,7 @@ Provides functions for:
 - Temperature-based object detection
 - Motion detection using background subtraction
 - Region of Interest (ROI) management and zone monitoring
+- YOLO v11 object and pose detection
 """
 
 from .utils import (
@@ -23,6 +24,15 @@ from .utils import (
 from .temperature_detection import detect_object_centers
 from .motion_detection import BackgroundSubtractor, detect_moving_objects
 from .roi import ROI, ROIManager
+
+# YOLO detection modules (optional, requires ultralytics)
+try:
+    from .yolo import YOLOObjectDetector, YOLOPoseDetector
+    YOLO_AVAILABLE = True
+except ImportError:
+    YOLO_AVAILABLE = False
+    YOLOObjectDetector = None
+    YOLOPoseDetector = None
 
 __all__ = [
     # Utilities
@@ -46,4 +56,7 @@ __all__ = [
     # ROI management
     "ROI",
     "ROIManager",
+    # YOLO detection (optional)
+    "YOLOObjectDetector",
+    "YOLOPoseDetector",
 ]
