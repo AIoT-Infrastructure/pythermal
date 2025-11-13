@@ -125,14 +125,16 @@ def setup_usb_permissions(project_root=None):
             shutil.copy2(udev_rules_file, target_rules)
             os.chmod(target_rules, 0o644)
         else:
-            # Need sudo
+            # Need sudo - ensure stdin is connected for password prompt
             subprocess.run(
                 ['sudo', 'cp', str(udev_rules_file), str(target_rules)],
-                check=True
+                check=True,
+                stdin=sys.stdin
             )
             subprocess.run(
                 ['sudo', 'chmod', '644', str(target_rules)],
-                check=True
+                check=True,
+                stdin=sys.stdin
             )
         
         print("✓ udev rules installed")
@@ -143,7 +145,8 @@ def setup_usb_permissions(project_root=None):
             username = os.environ.get('SUDO_USER') or os.environ.get('USER') or os.getlogin()
             subprocess.run(
                 ['sudo', 'usermod', '-a', '-G', 'plugdev', username],
-                check=True
+                check=True,
+                stdin=sys.stdin
             )
             print(f"✓ User {username} added to plugdev group")
         else:
@@ -167,8 +170,8 @@ def setup_usb_permissions(project_root=None):
             subprocess.run(['udevadm', 'control', '--reload-rules'], check=True)
             subprocess.run(['udevadm', 'trigger'], check=True)
         else:
-            subprocess.run(['sudo', 'udevadm', 'control', '--reload-rules'], check=True)
-            subprocess.run(['sudo', 'udevadm', 'trigger'], check=True)
+            subprocess.run(['sudo', 'udevadm', 'control', '--reload-rules'], check=True, stdin=sys.stdin)
+            subprocess.run(['sudo', 'udevadm', 'trigger'], check=True, stdin=sys.stdin)
         
         print("✓ udev rules reloaded")
         
