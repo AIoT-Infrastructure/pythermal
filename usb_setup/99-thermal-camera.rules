@@ -1,0 +1,17 @@
+# Hikvision Thermal Camera udev rules
+# Based on lsusb output: Bus 006 Device 003: ID 2bdf:0102 HIK HikCamera
+# Common Hikvision thermal camera IDs:
+# 2bdf:0002 - Hikvision USB Camera
+# 2bdf:0003 - Hikvision Thermal Camera
+# 2bdf:0102 - HIK HikCamera (your specific device)
+
+# For your specific Hikvision camera
+SUBSYSTEM=="usb", ATTR{idVendor}=="2bdf", ATTR{idProduct}=="0102", MODE="0666", GROUP="plugdev"
+
+# For other common Hikvision cameras
+SUBSYSTEM=="usb", ATTR{idVendor}=="2bdf", ATTR{idProduct}=="0002", MODE="0666", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{idVendor}=="2bdf", ATTR{idProduct}=="0003", MODE="0666", GROUP="plugdev"
+
+# General rule for thermal cameras (if you're unsure of the exact ID)
+SUBSYSTEM=="usb", ATTR{product}=="*Thermal*", MODE="0666", GROUP="plugdev"
+SUBSYSTEM=="usb", ATTR{product}=="*thermal*", MODE="0666", GROUP="plugdev" 
