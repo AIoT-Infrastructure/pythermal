@@ -145,23 +145,18 @@ install_ffmpeg() {
 setup_usb_permissions() {
     print_status "Setting up USB device permissions for thermal camera..."
     
-    if [[ ! -f "setup-thermal-permissions.sh" ]]; then
-        print_error "setup-thermal-permissions.sh not found in current directory"
+    if [[ ! -f "usb_setup/setup.sh" ]]; then
+        print_error "usb_setup/setup.sh not found"
         exit 1
     fi
     
-    if [[ ! -f "99-thermal-camera.rules" ]]; then
-        print_error "99-thermal-camera.rules not found in current directory"
-        print_error "This file is required for USB device permissions setup"
-        exit 1
-    fi
-    
-    chmod +x setup-thermal-permissions.sh
-    ./setup-thermal-permissions.sh
+    # Change to usb_setup directory and run the setup script
+    cd usb_setup
+    chmod +x setup.sh
+    ./setup.sh
+    cd ..
     
     print_success "USB device permissions configured"
-    print_warning "You will need to disconnect and reconnect your thermal camera"
-    print_warning "You should also log out and log back in (or restart) for permissions to take effect"
 }
 
 # Function to display final instructions
