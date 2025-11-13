@@ -6,18 +6,24 @@ Setup script for pythermal library
 from setuptools import setup, find_packages
 from pathlib import Path
 
-# Import custom command
+# Import custom commands
 try:
-    from pythermal.commands import BuildDocsCommand
+    from pythermal.commands import BuildDocsCommand, InstallWithUSBSetup
 except ImportError:
-    # If commands module doesn't exist yet, create a dummy command
+    # If commands module doesn't exist yet, create dummy commands
     from setuptools import Command
+    from setuptools.command.install import install
+    
     class BuildDocsCommand(Command):
         description = 'Build Sphinx documentation'
         user_options = []
         def initialize_options(self): pass
         def finalize_options(self): pass
         def run(self): pass
+    
+    class InstallWithUSBSetup(install):
+        description = 'Install the package and set up USB device permissions'
+        def run(self): install.run(self)
 
 # Read README for long description
 readme_file = Path(__file__).parent / "README.md"
@@ -26,18 +32,22 @@ long_description = readme_file.read_text() if readme_file.exists() else ""
 # Get version from package
 version = "0.1.5"
 
-# Find all native binaries to include
-package_dir = Path(__file__).parent / "pythermal" / "_native" / "armLinux"
+# Find all native binaries to include (both architectures)
+native_base = Path(__file__).parent / "pythermal" / "_native"
 native_files = []
-if package_dir.exists():
-    for file in package_dir.iterdir():
-        if file.is_file():
-            native_files.append(str(file.relative_to(Path(__file__).parent)))
+
+# Include files from both linux64 and armLinux directories
+for arch_dir in ["linux64", "armLinux"]:
+    arch_path = native_base / arch_dir
+    if arch_path.exists():
+        for file in arch_path.iterdir():
+            if file.is_file():
+                native_files.append(str(file.relative_to(Path(__file__).parent)))
 
 setup(
     name="pythermal",
     version=version,
-    description="A lightweight Python library for thermal sensing and analytics on ARM Linux platforms",
+    description="A lightweight Python library for thermal sensing and analytics on Linux platforms",
     long_description=long_description,
     long_description_content_type="text/markdown",
     author="ThermalCare Team",
@@ -46,7 +56,9 @@ setup(
     packages=find_packages(),
     package_data={
         "pythermal": [
+            "_native/linux64/*",
             "_native/armLinux/*",
+            "usb_setup/*",
         ],
     },
     include_package_data=True,
@@ -71,6 +83,7 @@ setup(
     entry_points={
         "console_scripts": [
             "pythermal-preview=pythermal.live_view:main",
+            "pythermal-setup-usb=pythermal.commands:setup_usb_permissions_cli",
         ],
     },
     classifiers=[
@@ -89,6 +102,7 @@ setup(
     zip_safe=False,  # Required for native binaries
     cmdclass={
         'build_docs': BuildDocsCommand,
+        'install': InstallWithUSBSetup,
     },
 )
 

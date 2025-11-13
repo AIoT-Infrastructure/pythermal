@@ -1,6 +1,6 @@
 # 🔥 PyThermal
 
-**A lightweight Python library for thermal sensing and analytics on ARM Linux platforms.**
+**A lightweight Python library for thermal sensing and analytics on Linux platforms (x86_64 and ARM).**
 It provides unified APIs for recording, visualization, and intelligent analysis of thermal data from Hikvision or compatible infrared sensors.
 
 ---
@@ -41,9 +41,39 @@ It provides unified APIs for recording, visualization, and intelligent analysis 
 
 ## 🚀 Installation
 
-### Prerequisites
+### Quick Install (Recommended)
 
-Before installing the Python package, you need to set up the thermal camera permissions and native runtime:
+Install from source with automatic USB setup:
+
+```bash
+git clone https://github.com/AIoT-Infrastructure/pythermal.git
+cd pythermal
+pip install -e .
+```
+
+**✨ Automatic USB Setup**: When you install with `pip install -e .`, the package automatically:
+- Sets up USB device permissions (copies udev rules to `/etc/udev/rules.d/`)
+- Adds your user to the `plugdev` group
+- Reloads udev rules
+
+You may be prompted for your password during installation to complete the USB setup. After installation:
+- Disconnect and reconnect your thermal camera
+- Log out and log back in (or restart) for group changes to take effect
+
+### Alternative: Manual USB Setup
+
+If you prefer to set up USB permissions manually, or if automatic setup didn't work:
+
+```bash
+# After installing the package
+pythermal-setup-usb
+```
+
+This command will prompt for your password and set up USB permissions manually.
+
+### Full Setup (Optional)
+
+For a complete setup including system dependencies (FFmpeg libraries) and native compilation:
 
 ```bash
 cd pythermal
@@ -51,29 +81,21 @@ cd pythermal
 ```
 
 This script will:
-1. Install required system dependencies (cross-compiler, FFmpeg libraries)
+1. Detect your system architecture (x86_64 or ARM) and install required system dependencies (FFmpeg libraries)
 2. Set up USB device permissions for the thermal camera
-3. Compile the native thermal recorder (`pythermal-recorder`)
+3. Compile the native thermal recorder (`pythermal-recorder`) for your architecture
 
-After running `setup.sh`, you may need to:
-- Disconnect and reconnect your thermal camera
-- Log out and log back in (or restart) for permissions to take effect
+> **Note**: The native binaries are already included in the package, so compilation is only needed if you want to rebuild them.
 
-### Install Python Package
+### Install from PyPI
 
-Install directly on an ARM Linux device (e.g., Jetson, OrangePi, Raspberry Pi):
+Install directly on a Linux device (x86_64 or ARM, e.g., x86_64 desktop, Jetson, OrangePi, Raspberry Pi):
 
 ```bash
 uv pip install pythermal
 ```
 
-Or from source:
-
-```bash
-git clone https://github.com/AIoT-Infrastructure/pythermal.git
-cd pythermal
-uv pip install .
-```
+After installation, run `pythermal-setup-usb` to set up USB permissions.
 
 ### Optional: YOLO Detection Support
 
@@ -90,7 +112,7 @@ pip install ultralytics>=8.0.0
 ```
 
 > ✅ **Bundled Native Runtime**
-> The package ships with the native thermal recorder (`pythermal-recorder`) and required shared libraries (`.so` files) under `pythermal/_native/armLinux/`.
+> The package ships with the native thermal recorder (`pythermal-recorder`) and required shared libraries (`.so` files) for both x86_64 (`pythermal/_native/linux64/`) and ARM (`pythermal/_native/armLinux/`). The library automatically detects your system architecture and uses the appropriate binaries.
 
 ---
 
@@ -314,14 +336,24 @@ See `examples/yolo_object_detection.py` and `examples/yolo_pose_detection.py` fo
 | Command                | Description                                     |
 | ---------------------- | ----------------------------------------------- |
 | `pythermal-preview` | Live preview with temperature overlay           |
+| `pythermal-setup-usb` | Set up USB device permissions for thermal camera |
 
-Example:
+Examples:
 
 ```bash
+# Live preview
 pythermal-preview
+
+# Set up USB permissions (if not done during install)
+pythermal-setup-usb
 ```
 
-This will start the thermal device and display a live view window.
+The `pythermal-setup-usb` command will:
+- Copy udev rules to `/etc/udev/rules.d/`
+- Add your user to the `plugdev` group
+- Reload udev rules
+
+After running, disconnect and reconnect your thermal camera, and log out/in for changes to take effect.
 
 ---
 
@@ -383,10 +415,10 @@ This will start the thermal device and display a live view window.
 ## 🧪 Requirements
 
 * Python ≥ 3.9
-* ARM Linux environment (Jetson / OrangePi / Raspberry Pi)
+* Linux environment (x86_64 or ARM, e.g., x86_64 desktop, Jetson, OrangePi, Raspberry Pi)
 * NumPy, OpenCV (auto-installed via pip)
 * Thermal camera connected via USB
-* Proper USB permissions (set up via `setup.sh`)
+* Proper USB permissions (automatically set up during `pip install -e .`, or manually via `pythermal-setup-usb`)
 
 ### Optional Dependencies
 
@@ -407,8 +439,19 @@ The library uses a native binary (`pythermal-recorder`) that runs as a separate 
 
 ### Bundled Files
 
-The package includes the following native files under `pythermal/_native/armLinux/`:
+The package includes native files for both x86_64 and ARM architectures:
 
+**x86_64 (`pythermal/_native/linux64/`):**
+```
+pythermal/_native/linux64/
+├── pythermal-recorder      # Main thermal recorder executable
+├── libHCUSBSDK.so            # Hikvision USB SDK library
+├── libhpr.so                 # Hikvision processing library
+├── libusb-1.0.so*            # USB library dependencies
+└── libuvc.so                  # UVC library
+```
+
+**ARM (`pythermal/_native/armLinux/`):**
 ```
 pythermal/_native/armLinux/
 ├── pythermal-recorder      # Main thermal recorder executable
@@ -417,6 +460,8 @@ pythermal/_native/armLinux/
 ├── libusb-1.0.so*            # USB library dependencies
 └── libuvc.so                  # UVC library
 ```
+
+The library automatically detects your system architecture and loads the appropriate binaries.
 
 ### Shared Memory Layout
 
@@ -455,15 +500,23 @@ The `ThermalDevice` class:
 
 * **`TimeoutError: Shared memory did not become available`**
   - Check that the thermal camera is connected via USB
-  - Verify USB permissions are set up correctly (run `setup.sh`)
+  - Verify USB permissions are set up correctly (run `pythermal-setup-usb` or `setup.sh`)
   - Try disconnecting and reconnecting the camera
+  - Log out and log back in (or restart) after setting up USB permissions
   - Check that no other process is using the thermal camera
 
 * **`RuntimeError: Thermal recorder process exited unexpectedly`**
   Check the process output for error messages. Common issues:
   - Camera not detected
-  - Missing USB permissions
+  - Missing USB permissions (run `pythermal-setup-usb` to fix)
   - Missing shared libraries (check `LD_LIBRARY_PATH`)
+  
+* **USB Permission Issues**
+  - If you get permission errors accessing the thermal camera:
+    1. Run `pythermal-setup-usb` (or `sudo pythermal-setup-usb`)
+    2. Disconnect and reconnect your thermal camera
+    3. Log out and log back in (or restart your system)
+    4. Verify with `lsusb` that your camera is detected
 
 * **`ImportError: ultralytics package is required for YOLO detection`**
   Install the ultralytics package:
@@ -496,6 +549,11 @@ pythermal/
 │   │   ├── utils.py           # Shared utilities and shape analysis
 │   │   ├── temperature_detection.py  # Temperature-based detection
 │   │   ├── motion_detection.py       # Background subtraction and motion detection
+│   │   └── roi.py             # ROI management and zone monitoring
+│   ├── usb_setup/             # USB setup scripts (included in package)
+│   │   ├── setup.sh           # USB permissions setup script
+│   │   ├── setup-thermal-permissions.sh
+│   │   └── 99-thermal-camera.rules  # udev rules file
 │   │   ├── roi.py             # ROI management and zone monitoring
 │   │   └── yolo/              # YOLO v11 detection module
 │   │       ├── __init__.py
@@ -504,7 +562,10 @@ pythermal/
 │   │       └── models/              # Custom thermal models directory
 │   │           └── README.md         # Instructions for custom models
 │   └── _native/
-│       └── armLinux/
+│       ├── linux64/           # x86_64 binaries
+│       │   ├── pythermal-recorder
+│       │   └── *.so            # Native libraries
+│       └── armLinux/          # ARM binaries
 │           ├── pythermal-recorder
 │           └── *.so            # Native libraries
 ├── examples/                  # Example scripts
@@ -512,11 +573,13 @@ pythermal/
 │   ├── record_thermal.py
 │   ├── detect_objects.py      # Object detection visualization example
 │   ├── detect_motion.py       # Motion detection example
+│   └── detect_roi.py          # ROI zone monitoring example
+├── setup.sh                   # Full setup script (permissions, dependencies, compilation)
+├── setup.py                   # Python package setup (includes automatic USB setup)
 │   ├── detect_roi.py          # ROI zone monitoring example
 │   ├── yolo_object_detection.py  # YOLO object detection example
 │   └── yolo_pose_detection.py   # YOLO pose detection example
 ├── setup.sh                   # Setup script for permissions and compilation
-├── setup-thermal-permissions.sh
 ├── setup.py                   # Python package setup
 └── README.md
 ```
