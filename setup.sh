@@ -158,42 +158,6 @@ setup_usb_permissions() {
     print_warning "You should also log out and log back in (or restart) for permissions to take effect"
 }
 
-# Function to compile the thermal recorder
-compile_thermal_recorder() {
-    print_status "Compiling thermal recorder for $ARCH_DIR..."
-    
-    if [[ ! -d "demo/$ARCH_DIR" ]]; then
-        print_error "demo/$ARCH_DIR directory not found"
-        exit 1
-    fi
-    
-    cd demo/$ARCH_DIR
-    make clean && make
-    cd ../..
-    
-    print_success "Thermal recorder compiled successfully"
-}
-
-# Function to verify installation
-verify_installation() {
-    print_status "Verifying installation..."
-    
-    if [[ -f "library/$ARCH_DIR/thermal_recorder" ]]; then
-        print_success "thermal_recorder executable found"
-    else
-        print_error "thermal_recorder executable not found at library/$ARCH_DIR/thermal_recorder"
-        exit 1
-    fi
-    
-    # Check if executable has proper permissions
-    if [[ -x "library/$ARCH_DIR/thermal_recorder" ]]; then
-        print_success "thermal_recorder is executable"
-    else
-        print_warning "Making thermal_recorder executable..."
-        chmod +x library/$ARCH_DIR/thermal_recorder
-    fi
-}
-
 # Function to display final instructions
 show_final_instructions() {
     echo ""
@@ -206,17 +170,11 @@ show_final_instructions() {
     print_status "Next Steps:"
     echo "1. Disconnect and reconnect your thermal camera"
     echo "2. Log out and log back in (or restart your system)"
-    echo "3. Navigate to the library/$ARCH_DIR directory:"
-    echo "   cd library/$ARCH_DIR/"
-    echo "4. Run the thermal recorder:"
-    echo "   ./thermal_recorder"
+    echo "3. You can now use the PyThermal library with the native binaries"
     echo ""
-    print_status "Example commands:"
-    echo "• Record for 30 seconds: ./thermal_recorder -s 30"
-    echo "• Record for 2 minutes:  ./thermal_recorder -m 2"
-    echo "• Show help:             ./thermal_recorder -h"
+    print_status "The native binaries are located in: pythermal/_native/$ARCH_DIR/"
     echo ""
-    print_status "For troubleshooting, refer to the HK_SDK_INSTALL.md file"
+    print_status "For troubleshooting, refer to the README.md file"
 }
 
 # Main setup function
@@ -252,15 +210,7 @@ main() {
     setup_usb_permissions
     echo ""
     
-    # Step 5: Compile thermal recorder
-    compile_thermal_recorder
-    echo ""
-    
-    # Step 6: Verify installation
-    verify_installation
-    echo ""
-    
-    # Step 7: Show final instructions
+    # Step 5: Show final instructions
     show_final_instructions
 }
 
