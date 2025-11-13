@@ -436,6 +436,10 @@ pythermal/
 │   │   ├── temperature_detection.py  # Temperature-based detection
 │   │   ├── motion_detection.py       # Background subtraction and motion detection
 │   │   └── roi.py             # ROI management and zone monitoring
+│   ├── usb_setup/             # USB setup scripts (included in package)
+│   │   ├── setup.sh           # USB permissions setup script
+│   │   ├── setup-thermal-permissions.sh
+│   │   └── 99-thermal-camera.rules  # udev rules file
 │   └── _native/
 │       ├── linux64/           # x86_64 binaries
 │       │   ├── pythermal-recorder
@@ -451,12 +455,6 @@ pythermal/
 │   └── detect_roi.py          # ROI zone monitoring example
 ├── setup.sh                   # Full setup script (permissions, dependencies, compilation)
 ├── setup.py                   # Python package setup (includes automatic USB setup)
-├── pythermal/
-│   ├── usb_setup/             # USB setup scripts (included in package)
-│   │   ├── setup.sh           # USB permissions setup script
-│   │   ├── setup-thermal-permissions.sh
-│   │   └── 99-thermal-camera.rules  # udev rules file
-│   └── ...
 └── README.md
 ```
 
