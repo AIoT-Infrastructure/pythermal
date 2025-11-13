@@ -69,47 +69,65 @@ def setup_usb_permissions(project_root=None):
     print("Setting up USB device permissions for thermal camera...")
     print("="*50)
     
-    # Get paths - try to find the project root
-    # For editable installs, the project root is where setup.py is located
+    # Get paths - try to find usb_setup directory
+    # Priority: 1) Inside package (for installed packages), 2) Project root (for editable installs)
+    usb_setup_dir = None
+    udev_rules_file = None
+    
     if project_root is None:
-        # Try multiple strategies to find the project root
-        # Strategy 1: Look for setup.py in parent directories from this file
-        current_path = Path(__file__).resolve()
-        for parent in current_path.parents:
-            if (parent / 'setup.py').exists() and (parent / 'usb_setup' / '99-thermal-camera.rules').exists():
-                project_root = parent
-                break
+        # Strategy 1: Look inside the package directory (for installed packages)
+        package_dir = Path(__file__).parent
+        package_usb_setup = package_dir / 'usb_setup' / '99-thermal-camera.rules'
+        if package_usb_setup.exists():
+            usb_setup_dir = package_dir / 'usb_setup'
+            udev_rules_file = package_usb_setup
         
-        # Strategy 2: Try current working directory (for development)
-        if project_root is None:
+        # Strategy 2: Look for setup.py in parent directories (for editable installs)
+        if usb_setup_dir is None:
+            current_path = Path(__file__).resolve()
+            for parent in current_path.parents:
+                project_usb_setup = parent / 'usb_setup' / '99-thermal-camera.rules'
+                if (parent / 'setup.py').exists() and project_usb_setup.exists():
+                    usb_setup_dir = parent / 'usb_setup'
+                    udev_rules_file = project_usb_setup
+                    project_root = parent
+                    break
+        
+        # Strategy 3: Try current working directory (for development)
+        if usb_setup_dir is None:
             cwd = Path.cwd()
-            if (cwd / 'setup.py').exists() and (cwd / 'usb_setup' / '99-thermal-camera.rules').exists():
+            project_usb_setup = cwd / 'usb_setup' / '99-thermal-camera.rules'
+            if (cwd / 'setup.py').exists() and project_usb_setup.exists():
+                usb_setup_dir = cwd / 'usb_setup'
+                udev_rules_file = project_usb_setup
                 project_root = cwd
         
-        # Strategy 3: Try relative to package location (for non-editable installs)
-        if project_root is None:
+        # Strategy 4: Try inside package directory (alternative path for non-editable installs)
+        if usb_setup_dir is None:
             package_dir = Path(__file__).parent
-            project_root = package_dir.parent
-            if not (project_root / 'usb_setup' / '99-thermal-camera.rules').exists():
-                project_root = None
-    
-    # Convert to Path if it's not already
-    if project_root is not None:
+            package_usb_setup = package_dir / 'usb_setup' / '99-thermal-camera.rules'
+            if package_usb_setup.exists():
+                usb_setup_dir = package_dir / 'usb_setup'
+                udev_rules_file = package_usb_setup
+    else:
+        # Project root provided, check both locations
         project_root = Path(project_root)
+        # Try project root first (editable installs)
+        project_usb_setup = project_root / 'usb_setup' / '99-thermal-camera.rules'
+        if project_usb_setup.exists():
+            usb_setup_dir = project_root / 'usb_setup'
+            udev_rules_file = project_usb_setup
+        else:
+            # Try package directory
+            package_dir = Path(__file__).parent
+            package_usb_setup = package_dir / 'usb_setup' / '99-thermal-camera.rules'
+            if package_usb_setup.exists():
+                usb_setup_dir = package_dir / 'usb_setup'
+                udev_rules_file = package_usb_setup
     
-    if project_root is None or not (project_root / 'usb_setup' / '99-thermal-camera.rules').exists():
-        print("Warning: Could not find project root with usb_setup directory.")
-        print("Please run this from the pythermal project directory or use:")
-        print("  pythermal-setup-usb")
-        return
-    
-    usb_setup_dir = project_root / 'usb_setup'
-    udev_rules_file = usb_setup_dir / '99-thermal-camera.rules'
-    
-    # Check if files exist
-    if not udev_rules_file.exists():
-        print(f"Warning: {udev_rules_file} not found. Skipping USB setup.")
-        print("You can run 'pythermal-setup-usb' manually to set up USB permissions.")
+    if usb_setup_dir is None or udev_rules_file is None or not udev_rules_file.exists():
+        print("Warning: Could not find usb_setup directory with 99-thermal-camera.rules.")
+        print("Please ensure the package is installed correctly or run from the project directory.")
         return
     
     # Check if running as root (which is common with pip install)

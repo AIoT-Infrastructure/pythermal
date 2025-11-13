@@ -145,13 +145,18 @@ install_ffmpeg() {
 setup_usb_permissions() {
     print_status "Setting up USB device permissions for thermal camera..."
     
-    if [[ ! -f "usb_setup/setup.sh" ]]; then
-        print_error "usb_setup/setup.sh not found"
+    # Check for usb_setup in package directory (new location) or project root (old location)
+    if [[ -f "pythermal/usb_setup/setup.sh" ]]; then
+        USB_SETUP_DIR="pythermal/usb_setup"
+    elif [[ -f "usb_setup/setup.sh" ]]; then
+        USB_SETUP_DIR="usb_setup"
+    else
+        print_error "usb_setup/setup.sh not found in pythermal/usb_setup/ or usb_setup/"
         exit 1
     fi
     
     # Change to usb_setup directory and run the setup script
-    cd usb_setup
+    cd "$USB_SETUP_DIR"
     chmod +x setup.sh
     ./setup.sh
     cd ..

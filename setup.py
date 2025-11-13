@@ -58,6 +58,7 @@ setup(
         "pythermal": [
             "_native/linux64/*",
             "_native/armLinux/*",
+            "usb_setup/*",
         ],
     },
     include_package_data=True,
