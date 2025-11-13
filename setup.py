@@ -6,18 +6,24 @@ Setup script for pythermal library
 from setuptools import setup, find_packages
 from pathlib import Path
 
-# Import custom command
+# Import custom commands
 try:
-    from pythermal.commands import BuildDocsCommand
+    from pythermal.commands import BuildDocsCommand, InstallWithUSBSetup
 except ImportError:
-    # If commands module doesn't exist yet, create a dummy command
+    # If commands module doesn't exist yet, create dummy commands
     from setuptools import Command
+    from setuptools.command.install import install
+    
     class BuildDocsCommand(Command):
         description = 'Build Sphinx documentation'
         user_options = []
         def initialize_options(self): pass
         def finalize_options(self): pass
         def run(self): pass
+    
+    class InstallWithUSBSetup(install):
+        description = 'Install the package and set up USB device permissions'
+        def run(self): install.run(self)
 
 # Read README for long description
 readme_file = Path(__file__).parent / "README.md"
@@ -71,6 +77,7 @@ setup(
     entry_points={
         "console_scripts": [
             "pythermal-preview=pythermal.live_view:main",
+            "pythermal-setup-usb=pythermal.commands:setup_usb_permissions_cli",
         ],
     },
     classifiers=[
@@ -89,6 +96,7 @@ setup(
     zip_safe=False,  # Required for native binaries
     cmdclass={
         'build_docs': BuildDocsCommand,
+        'install': InstallWithUSBSetup,
     },
 )
 
