@@ -26,6 +26,14 @@ It provides unified APIs for recording, visualization, and intelligent analysis 
   * Object center detection and clustering
   * Temperature statistics per detected object (min / max / avg)
 
+* **YOLO v11 Detection** (Optional)
+  Advanced object and pose detection using YOLO v11:
+  
+  * Object detection with YOLO v11 (supports default and custom thermal models)
+  * Pose/keypoint detection with 17 COCO keypoints
+  * Support for custom thermal-specific models
+  * Real-time inference on thermal images
+
 * **Offline Replay and Analysis** (Future Development)
   Replay recorded sessions for algorithm benchmarking or dataset generation.
 
@@ -88,6 +96,20 @@ uv pip install pythermal
 ```
 
 After installation, run `pythermal-setup-usb` to set up USB permissions.
+
+### Optional: YOLO Detection Support
+
+To enable YOLO v11 object and pose detection, install with the `yolo` extra:
+
+```bash
+uv pip install pythermal[yolo]
+```
+
+Or install ultralytics separately:
+
+```bash
+pip install ultralytics>=8.0.0
+```
 
 > ✅ **Bundled Native Runtime**
 > The package ships with the native thermal recorder (`pythermal-recorder`) and required shared libraries (`.so` files) for both x86_64 (`pythermal/_native/linux64/`) and ARM (`pythermal/_native/armLinux/`). The library automatically detects your system architecture and uses the appropriate binaries.
@@ -251,6 +273,64 @@ See `examples/detect_objects.py` for a complete visualization example.
 
 ---
 
+### 6. YOLO v11 Object and Pose Detection
+
+Detect objects and human poses using YOLO v11 models:
+
+```python
+from pythermal import ThermalDevice
+from pythermal.detections.yolo import YOLOObjectDetector, YOLOPoseDetector
+import cv2
+
+device = ThermalDevice()
+device.start()
+shm = device.get_shared_memory()
+
+# Initialize YOLO detectors (default models auto-download on first use)
+object_detector = YOLOObjectDetector(model_size="nano")  # Options: nano, small, medium, large, xlarge
+pose_detector = YOLOPoseDetector(model_size="nano")
+
+if shm.has_new_frame():
+    yuyv_frame = shm.get_yuyv_frame()
+    bgr_frame = cv2.cvtColor(yuyv_frame, cv2.COLOR_YUV2BGR_YUYV)
+    
+    # Object detection
+    objects = object_detector.detect(bgr_frame)
+    for obj in objects:
+        print(f"Detected {obj['class_name']} with confidence {obj['confidence']:.2f}")
+    
+    # Pose detection
+    poses = pose_detector.detect(bgr_frame)
+    for pose in poses:
+        print(f"Detected person with {len(pose['keypoints'])} keypoints")
+    
+    # Visualize
+    vis_image = object_detector.visualize(bgr_frame, objects)
+    # or
+    vis_image = pose_detector.visualize(bgr_frame, poses)
+
+device.stop()
+```
+
+#### Using Custom Thermal Models
+
+Place your custom YOLO v11 models (`.pt` files) in:
+```
+pythermal/pythermal/detections/yolo/models/
+```
+
+**Quick usage:**
+```python
+# Use custom model from models directory
+detector = YOLOObjectDetector(model_path="custom_thermal_object.pt")
+```
+
+📖 **For detailed instructions** on finding the models directory, uploading custom models, training, and troubleshooting, see the [YOLO Detection Guide](docs/YOLO_DETECTION.md).
+
+See `examples/yolo_object_detection.py` and `examples/yolo_pose_detection.py` for complete examples.
+
+---
+
 ## 🧩 Command Line Interface
 
 | Command                | Description                                     |
@@ -297,6 +377,8 @@ After running, disconnect and reconnect your thermal camera, and log out/in for 
 | `BackgroundSubtractor` | Background subtraction for motion detection using running average |
 | `ROI`                 | Region of Interest definition with optional temperature thresholds |
 | `ROIManager`          | Manages multiple ROIs for zone monitoring and filtering |
+| `YOLOObjectDetector`  | YOLO v11 object detector (requires `ultralytics` package) |
+| `YOLOPoseDetector`    | YOLO v11 pose/keypoint detector (requires `ultralytics` package) |
 
 ### Detection Functions
 
@@ -319,6 +401,15 @@ After running, disconnect and reconnect your thermal camera, and log out/in for 
 | `filter_by_area`      | Filter objects by area (min/max) |
 | `filter_by_shape`     | Filter objects by multiple shape criteria |
 
+### YOLO Detection Methods
+
+| Method                | Purpose                                         |
+| --------------------- | ----------------------------------------------- |
+| `YOLOObjectDetector.detect()` | Detect objects in image, returns list of detections with bbox, class, confidence |
+| `YOLOObjectDetector.visualize()` | Draw bounding boxes and labels on image |
+| `YOLOPoseDetector.detect()` | Detect poses/keypoints in image, returns list of poses with 17 keypoints |
+| `YOLOPoseDetector.visualize()` | Draw skeleton, keypoints, and bounding boxes on image |
+
 ---
 
 ## 🧪 Requirements
@@ -328,6 +419,15 @@ After running, disconnect and reconnect your thermal camera, and log out/in for 
 * NumPy, OpenCV (auto-installed via pip)
 * Thermal camera connected via USB
 * Proper USB permissions (automatically set up during `pip install -e .`, or manually via `pythermal-setup-usb`)
+
+### Optional Dependencies
+
+* **ultralytics ≥ 8.0.0**: Required for YOLO v11 detection features
+  ```bash
+  pip install ultralytics
+  # or
+  pip install pythermal[yolo]
+  ```
 
 ---
 
@@ -418,6 +518,20 @@ The `ThermalDevice` class:
     3. Log out and log back in (or restart your system)
     4. Verify with `lsusb` that your camera is detected
 
+* **`ImportError: ultralytics package is required for YOLO detection`**
+  Install the ultralytics package:
+  ```bash
+  pip install ultralytics
+  # or
+  pip install pythermal[yolo]
+  ```
+
+* **`FileNotFoundError: Model file not found`**
+  - For custom models, ensure the `.pt` file is in `pythermal/pythermal/detections/yolo/models/`
+  - Or provide the absolute path to the model file
+  - Default models are automatically downloaded on first use (check internet connection)
+  - See [YOLO Detection Guide](docs/YOLO_DETECTION.md#troubleshooting) for detailed troubleshooting
+
 ---
 
 ## 📦 Directory Structure
@@ -440,6 +554,13 @@ pythermal/
 │   │   ├── setup.sh           # USB permissions setup script
 │   │   ├── setup-thermal-permissions.sh
 │   │   └── 99-thermal-camera.rules  # udev rules file
+│   │   ├── roi.py             # ROI management and zone monitoring
+│   │   └── yolo/              # YOLO v11 detection module
+│   │       ├── __init__.py
+│   │       ├── object_detection.py   # YOLO object detection
+│   │       ├── pose_detection.py    # YOLO pose detection
+│   │       └── models/              # Custom thermal models directory
+│   │           └── README.md         # Instructions for custom models
 │   └── _native/
 │       ├── linux64/           # x86_64 binaries
 │       │   ├── pythermal-recorder
@@ -455,6 +576,11 @@ pythermal/
 │   └── detect_roi.py          # ROI zone monitoring example
 ├── setup.sh                   # Full setup script (permissions, dependencies, compilation)
 ├── setup.py                   # Python package setup (includes automatic USB setup)
+│   ├── detect_roi.py          # ROI zone monitoring example
+│   ├── yolo_object_detection.py  # YOLO object detection example
+│   └── yolo_pose_detection.py   # YOLO pose detection example
+├── setup.sh                   # Setup script for permissions and compilation
+├── setup.py                   # Python package setup
 └── README.md
 ```
 
