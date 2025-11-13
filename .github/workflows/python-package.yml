@@ -177,6 +177,10 @@ jobs:
       run: |
         cd docs && make html || echo "Documentation build failed, continuing..."
     
+    - name: Clean dist directory
+      run: |
+        rm -rf dist/
+    
     - name: Build package
       run: |
         uv build
