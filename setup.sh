@@ -150,6 +150,12 @@ setup_usb_permissions() {
         exit 1
     fi
     
+    if [[ ! -f "99-thermal-camera.rules" ]]; then
+        print_error "99-thermal-camera.rules not found in current directory"
+        print_error "This file is required for USB device permissions setup"
+        exit 1
+    fi
+    
     chmod +x setup-thermal-permissions.sh
     ./setup-thermal-permissions.sh
     
