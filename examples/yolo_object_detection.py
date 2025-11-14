@@ -53,7 +53,7 @@ def main():
         conf_threshold = 0.25
         detector = YOLOObjectDetector(
             #model_size="nano",  # Options: "nano", "small", "medium", "large", "xlarge"
-            model_path="/home/yq/Projects/fiduciary/pythermal/pythermal/detections/yolo/models/yolov8-object-best.pt",
+            model_path="./pythermal/detections/yolo/models/yolov8-object-best.pt",
             conf_threshold=conf_threshold,
             iou_threshold=0.45,
         )
