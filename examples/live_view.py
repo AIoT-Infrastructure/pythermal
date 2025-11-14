@@ -21,7 +21,7 @@ import time
 from datetime import datetime
 from typing import Optional
 
-from pythermal import ThermalDevice, ThermalLiveView, ThermalSharedMemory, WIDTH, HEIGHT
+from pythermal import ThermalDevice, ThermalLiveView, ThermalSharedMemory, ThermalRecorder, WIDTH, HEIGHT
 
 
 class EnhancedLiveView(ThermalLiveView):
@@ -194,7 +194,7 @@ class EnhancedLiveView(ThermalLiveView):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Live thermal camera view with color/temperature display switching"
+        description="Live thermal camera view with color/temperature display switching, or replay recorded files"
     )
     parser.add_argument(
         "--device",
@@ -202,9 +202,35 @@ def main():
         default=None,
         help="Optional path to native directory (default: use package location)"
     )
+    parser.add_argument(
+        "--replay",
+        type=str,
+        default=None,
+        help="Replay a recorded .tseq file instead of live view"
+    )
+    parser.add_argument(
+        "--fps",
+        type=float,
+        default=None,
+        help="Target FPS for replay (default: use original timestamps)"
+    )
+    parser.add_argument(
+        "--view-mode",
+        type=str,
+        default="yuyv",
+        choices=["yuyv", "temperature"],
+        help="Initial view mode for replay (default: yuyv)"
+    )
     
     args = parser.parse_args()
     
+    # If replay mode, use the replay function
+    if args.replay:
+        print(f"Replay mode: {args.replay}")
+        ThermalRecorder.replay(args.replay, view_mode=args.view_mode, fps=args.fps)
+        return
+    
+    # Otherwise, do live view
     # Create device if custom path provided
     device = None
     if args.device:

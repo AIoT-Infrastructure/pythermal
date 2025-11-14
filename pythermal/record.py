@@ -184,4 +184,143 @@ class ThermalRecorder:
         # Cleanup device only if we created it
         if self.device is not None and self._device_owned:
             self.device.cleanup()
+    
+    @staticmethod
+    def replay(file_path: str, view_mode: str = 'yuyv', fps: Optional[float] = None):
+        """
+        Replay a recorded thermal camera file.
+        
+        Args:
+            file_path: Path to the .tseq recording file
+            view_mode: 'yuyv' or 'temperature' view mode
+            fps: Target FPS for playback. If None, uses original timestamps.
+        """
+        from .live_view import ThermalLiveView
+        
+        file_path = Path(file_path)
+        if not file_path.exists():
+            print(f"Error: File not found: {file_path}")
+            return
+        
+        # Open file for reading
+        with open(file_path, "rb") as f:
+            # Read header: "TSEQ" + version (1 byte) + color flag (1 byte)
+            header = f.read(6)
+            if len(header) != 6 or header[:4] != b"TSEQ":
+                print(f"Error: Invalid file format: {file_path}")
+                return
+            
+            version = header[4]
+            has_color = header[5] == 1
+            
+            print(f"Replaying: {file_path}")
+            print(f"Format version: {version}, Color: {has_color}")
+            print("Press 'q' to quit, 't' to toggle view mode")
+            
+            # Calculate frame sizes
+            yuyv_size = WIDTH * HEIGHT * 2  # 115200 bytes
+            temp_size = TEMP_WIDTH * TEMP_HEIGHT * 2  # 18432 bytes
+            rgb_size = WIDTH * HEIGHT * 3 if has_color else 0  # 172800 bytes if color
+            frame_header_size = 24  # timestamp (8) + seq (4) + 3 floats (12)
+            frame_size = frame_header_size + yuyv_size + temp_size + rgb_size
+            
+            # Create a replay viewer (without device)
+            viewer = ThermalLiveView(device=None)
+            viewer.view_mode = view_mode
+            
+            # Initialize display window
+            window_name = "Thermal Camera Replay"
+            cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+            cv2.resizeWindow(window_name, 480, 640)
+            
+            # Set mouse callback
+            cv2.setMouseCallback(window_name, viewer.mouse_callback)
+            
+            frame_count = 0
+            last_timestamp = None
+            last_display_time = time.time()
+            
+            try:
+                while True:
+                    # Read frame header
+                    frame_header = f.read(frame_header_size)
+                    if len(frame_header) < frame_header_size:
+                        print(f"\nEnd of file reached. Total frames: {frame_count}")
+                        break
+                    
+                    # Unpack frame header
+                    timestamp, seq, min_temp, max_temp, avg_temp = struct.unpack("dIfff", frame_header)
+                    
+                    # Read YUYV data
+                    yuyv_bytes = f.read(yuyv_size)
+                    if len(yuyv_bytes) < yuyv_size:
+                        break
+                    yuyv = np.frombuffer(yuyv_bytes, dtype=np.uint8).reshape((HEIGHT, WIDTH, 2))
+                    
+                    # Read temperature array
+                    temp_bytes = f.read(temp_size)
+                    if len(temp_bytes) < temp_size:
+                        break
+                    temp_array = np.frombuffer(temp_bytes, dtype=np.uint16).reshape((TEMP_HEIGHT, TEMP_WIDTH))
+                    
+                    # Read RGB if present (but we'll use YUYV for display)
+                    if has_color:
+                        rgb_bytes = f.read(rgb_size)
+                        if len(rgb_bytes) < rgb_size:
+                            break
+                    
+                    # Store temperature data for mouse callback
+                    viewer.current_temp_data = temp_array.copy()
+                    
+                    # Display based on view mode
+                    if viewer.view_mode == 'yuyv':
+                        thermal_image = viewer.get_original_yuyv(yuyv)
+                    else:  # temperature view
+                        thermal_image = viewer.get_temperature_view(temp_array, min_temp, max_temp)
+                    
+                    # Calculate FPS (increment frame_count first, then calculate)
+                    frame_count += 1
+                    viewer.frame_count += 1
+                    current_fps = viewer.calculate_fps()
+                    
+                    # Draw overlay
+                    thermal_image = viewer.draw_overlay(
+                        thermal_image, min_temp, max_temp, avg_temp, seq, current_fps
+                    )
+                    
+                    # Display image
+                    cv2.imshow(window_name, thermal_image)
+                    
+                    # Handle timing
+                    if fps is not None:
+                        # Use fixed FPS
+                        target_delay = 1.0 / fps
+                        elapsed = time.time() - last_display_time
+                        if elapsed < target_delay:
+                            time.sleep(target_delay - elapsed)
+                        last_display_time = time.time()
+                    elif last_timestamp is not None:
+                        # Use original timestamps
+                        frame_delay = timestamp - last_timestamp
+                        if frame_delay > 0:
+                            time.sleep(frame_delay)
+                    last_timestamp = timestamp
+                    
+                    # Handle keyboard input
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q'):
+                        break
+                    elif key == ord('t'):
+                        viewer.view_mode = 'temperature' if viewer.view_mode == 'yuyv' else 'yuyv'
+                        print(f"Switched to {viewer.view_mode.upper()} view")
+                    
+            except KeyboardInterrupt:
+                print("\nReplay interrupted by user")
+            except Exception as e:
+                print(f"Error during replay: {e}")
+                import traceback
+                traceback.print_exc()
+            finally:
+                cv2.destroyAllWindows()
+                print("Replay stopped")
 
