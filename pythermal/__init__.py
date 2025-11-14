@@ -17,6 +17,7 @@ from .thermal_shared_memory import (
 )
 from .record import ThermalRecorder
 from .live_view import ThermalLiveView
+from .sequence_reader import ThermalSequenceReader, ThermalCapture
 from .detections import (
     detect_object_centers,
     cluster_objects,
@@ -41,6 +42,8 @@ __all__ = [
     "FrameMetadata",
     "ThermalRecorder",
     "ThermalLiveView",
+    "ThermalSequenceReader",
+    "ThermalCapture",
     "detect_object_centers",
     "cluster_objects",
     "BackgroundSubtractor",

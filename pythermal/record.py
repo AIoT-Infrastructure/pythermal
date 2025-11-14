@@ -196,33 +196,15 @@ class ThermalRecorder:
             fps: Target FPS for playback. If None, uses original timestamps.
         """
         from .live_view import ThermalLiveView
+        from .sequence_reader import ThermalSequenceReader
         
-        file_path = Path(file_path)
-        if not file_path.exists():
-            print(f"Error: File not found: {file_path}")
-            return
-        
-        # Open file for reading
-        with open(file_path, "rb") as f:
-            # Read header: "TSEQ" + version (1 byte) + color flag (1 byte)
-            header = f.read(6)
-            if len(header) != 6 or header[:4] != b"TSEQ":
-                print(f"Error: Invalid file format: {file_path}")
-                return
-            
-            version = header[4]
-            has_color = header[5] == 1
+        try:
+            # Use ThermalSequenceReader for better structure
+            reader = ThermalSequenceReader(file_path)
             
             print(f"Replaying: {file_path}")
-            print(f"Format version: {version}, Color: {has_color}")
+            print(f"Total frames: {reader._total_frames}")
             print("Press 'q' to quit, 't' to toggle view mode")
-            
-            # Calculate frame sizes
-            yuyv_size = WIDTH * HEIGHT * 2  # 115200 bytes
-            temp_size = TEMP_WIDTH * TEMP_HEIGHT * 2  # 18432 bytes
-            rgb_size = WIDTH * HEIGHT * 3 if has_color else 0  # 172800 bytes if color
-            frame_header_size = 24  # timestamp (8) + seq (4) + 3 floats (12)
-            frame_size = frame_header_size + yuyv_size + temp_size + rgb_size
             
             # Create a replay viewer (without device)
             viewer = ThermalLiveView(device=None)
@@ -241,33 +223,23 @@ class ThermalRecorder:
             last_display_time = time.time()
             
             try:
-                while True:
-                    # Read frame header
-                    frame_header = f.read(frame_header_size)
-                    if len(frame_header) < frame_header_size:
-                        print(f"\nEnd of file reached. Total frames: {frame_count}")
+                while reader.has_new_frame():
+                    # Read frame using the reader
+                    success, bgr_frame = reader.read()
+                    if not success:
                         break
                     
-                    # Unpack frame header
-                    timestamp, seq, min_temp, max_temp, avg_temp = struct.unpack("dIfff", frame_header)
+                    # Get metadata
+                    metadata = reader.get_metadata()
+                    if metadata is None:
+                        continue
                     
-                    # Read YUYV data
-                    yuyv_bytes = f.read(yuyv_size)
-                    if len(yuyv_bytes) < yuyv_size:
-                        break
-                    yuyv = np.frombuffer(yuyv_bytes, dtype=np.uint8).reshape((HEIGHT, WIDTH, 2))
+                    # Get frame data
+                    yuyv = reader.get_yuyv_frame()
+                    temp_array = reader.get_temperature_array()
                     
-                    # Read temperature array
-                    temp_bytes = f.read(temp_size)
-                    if len(temp_bytes) < temp_size:
-                        break
-                    temp_array = np.frombuffer(temp_bytes, dtype=np.uint16).reshape((TEMP_HEIGHT, TEMP_WIDTH))
-                    
-                    # Read RGB if present (but we'll use YUYV for display)
-                    if has_color:
-                        rgb_bytes = f.read(rgb_size)
-                        if len(rgb_bytes) < rgb_size:
-                            break
+                    if yuyv is None or temp_array is None:
+                        continue
                     
                     # Store temperature data for mouse callback
                     viewer.current_temp_data = temp_array.copy()
@@ -276,16 +248,19 @@ class ThermalRecorder:
                     if viewer.view_mode == 'yuyv':
                         thermal_image = viewer.get_original_yuyv(yuyv)
                     else:  # temperature view
-                        thermal_image = viewer.get_temperature_view(temp_array, min_temp, max_temp)
+                        thermal_image = viewer.get_temperature_view(
+                            temp_array, metadata.min_temp, metadata.max_temp
+                        )
                     
-                    # Calculate FPS (increment frame_count first, then calculate)
+                    # Calculate FPS
                     frame_count += 1
                     viewer.frame_count += 1
                     current_fps = viewer.calculate_fps()
                     
                     # Draw overlay
                     thermal_image = viewer.draw_overlay(
-                        thermal_image, min_temp, max_temp, avg_temp, seq, current_fps
+                        thermal_image, metadata.min_temp, metadata.max_temp,
+                        metadata.avg_temp, metadata.seq, current_fps
                     )
                     
                     # Display image
@@ -299,12 +274,14 @@ class ThermalRecorder:
                         if elapsed < target_delay:
                             time.sleep(target_delay - elapsed)
                         last_display_time = time.time()
-                    elif last_timestamp is not None:
+                    elif reader._current_frame_data and 'timestamp' in reader._current_frame_data:
                         # Use original timestamps
-                        frame_delay = timestamp - last_timestamp
-                        if frame_delay > 0:
-                            time.sleep(frame_delay)
-                    last_timestamp = timestamp
+                        timestamp = reader._current_frame_data['timestamp']
+                        if last_timestamp is not None:
+                            frame_delay = timestamp - last_timestamp
+                            if frame_delay > 0:
+                                time.sleep(frame_delay)
+                        last_timestamp = timestamp
                     
                     # Handle keyboard input
                     key = cv2.waitKey(1) & 0xFF
@@ -313,6 +290,8 @@ class ThermalRecorder:
                     elif key == ord('t'):
                         viewer.view_mode = 'temperature' if viewer.view_mode == 'yuyv' else 'yuyv'
                         print(f"Switched to {viewer.view_mode.upper()} view")
+                
+                print(f"\nEnd of file reached. Total frames: {frame_count}")
                     
             except KeyboardInterrupt:
                 print("\nReplay interrupted by user")
@@ -321,6 +300,12 @@ class ThermalRecorder:
                 import traceback
                 traceback.print_exc()
             finally:
+                reader.release()
                 cv2.destroyAllWindows()
                 print("Replay stopped")
+        
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+        except ValueError as e:
+            print(f"Error: {e}")
 

@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
-Example: Visualize clustered thermal objects
+Example: Visualize clustered thermal objects (Live or Recorded)
 
 This example demonstrates how to detect objects in thermal images based on
 temperature ranges and visualize them with colored clusters.
+Supports both live camera feed and pre-recorded sequences using ThermalCapture.
 """
 
 import cv2
 import numpy as np
+import argparse
+import time
 from pythermal import (
-    ThermalDevice,
-    ThermalSharedMemory,
+    ThermalCapture,
     detect_object_centers,
     cluster_objects,
-    DetectedObject,
     WIDTH,
     HEIGHT,
     TEMP_WIDTH,
@@ -149,106 +150,205 @@ def visualize_clustered_objects(
 
 
 def main():
-    """Main function to run the detection and visualization example"""
-    print("Starting thermal object detection visualization...")
-    print("Press 'q' to quit")
+    """Main function to run detection on live or recorded data"""
+    parser = argparse.ArgumentParser(
+        description="Detect objects in thermal images (live or recorded)",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Live detection (default)
+  python detect_objects.py
+  python detect_objects.py 0
+  
+  # Recorded detection
+  python detect_objects.py recordings/thermal_20240101.tseq
+  
+  # Recorded with custom parameters
+  python detect_objects.py file.tseq --temp-min 25.0 --temp-max 40.0 --fps 30
+        """
+    )
+    parser.add_argument(
+        "source",
+        type=str,
+        nargs="?",
+        default=None,
+        help="Source: file path for recorded .tseq file, or 0/empty/omit for live camera (default: live camera)"
+    )
+    parser.add_argument(
+        "--temp-min",
+        type=float,
+        default=30.0,
+        help="Minimum temperature for detection in Celsius (default: 30.0)"
+    )
+    parser.add_argument(
+        "--temp-max",
+        type=float,
+        default=39.0,
+        help="Maximum temperature for detection in Celsius (default: 39.0)"
+    )
+    parser.add_argument(
+        "--min-area",
+        type=int,
+        default=50,
+        help="Minimum area for detection (default: 50)"
+    )
+    parser.add_argument(
+        "--fps",
+        type=float,
+        default=None,
+        help="Playback FPS for recorded data (default: use original timestamps, live: no limit)"
+    )
     
-    # Initialize thermal device
-    device = ThermalDevice()
+    args = parser.parse_args()
+    
+    # Initialize thermal capture (unified interface)
+    print("Initializing thermal capture...")
     try:
-        device.start()
-        shm = device.get_shared_memory()
+        capture = ThermalCapture(args.source)
+        is_recorded = capture.is_recorded
         
-        if not shm.initialize():
-            print("Failed to initialize shared memory")
-            return
-        
-        frame_count = 0
-        
+        if is_recorded:
+            print("Starting object detection on pre-recorded sequence...")
+            print(f"File: {args.source}")
+            total_frames = capture.get(cv2.CAP_PROP_FRAME_COUNT)
+            if total_frames > 0:
+                print(f"Total frames: {int(total_frames)}")
+            print("Press 'q' to quit, SPACE to pause/resume")
+        else:
+            print("Starting thermal object detection visualization (live)...")
+            print("Press 'q' to quit")
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}")
+        return
+    except RuntimeError as e:
+        print(f"ERROR: {e}")
+        return
+    except ValueError as e:
+        print(f"ERROR: Invalid file format - {e}")
+        return
+    except Exception as e:
+        print(f"ERROR: Failed to initialize thermal capture: {e}")
+        return
+    
+    paused = False
+    frame_count = 0
+    last_display_time = time.time()
+    window_name = "Thermal Object Detection" + (" (Replay)" if is_recorded else "")
+    
+    try:
         while True:
-            if not shm.has_new_frame():
-                continue
-            
-            # Get frame data
-            metadata = shm.get_metadata()
-            if metadata is None:
-                continue
-            
-            temp_array = shm.get_temperature_array()
-            yuyv_frame = shm.get_yuyv_frame()
-            
-            if temp_array is None or yuyv_frame is None:
-                shm.mark_frame_read()
-                continue
-            
-            # Detect objects (default: 31-39°C for human body detection)
-            objects = detect_object_centers(
-                temp_array=temp_array,
-                min_temp=metadata.min_temp,
-                max_temp=metadata.max_temp,
-                temp_min=30.0,
-                temp_max=39.0,
-                min_area=50
-            )
-            
-            # Cluster objects
-            clusters = cluster_objects(objects, max_distance=30.0)
-            
-            # Visualize
-            vis_image = visualize_clustered_objects(
-                temp_array=temp_array,
-                yuyv_frame=yuyv_frame,
-                objects=objects,
-                clusters=clusters,
-                min_temp=metadata.min_temp,
-                max_temp=metadata.max_temp
-            )
-            
-            # Add info text
-            info_text = [
-                f"Frame: {metadata.seq}",
-                f"Objects: {len(objects)}, Clusters: {len(clusters)}",
-            ]
-            # Add detected object temperature range if objects found
-            if objects:
-                obj_temps = [obj.avg_temperature for obj in objects]
-                info_text.append(f"Detected: {min(obj_temps):.0f}C - {max(obj_temps):.0f}C")
-            y_offset = 15
-            for text in info_text:
-                cv2.putText(
-                    vis_image,
-                    text,
-                    (10, y_offset),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    0.4,
-                    (255, 255, 255),
-                    1
+            if not paused:
+                # Check for new frame
+                if not capture.has_new_frame():
+                    if is_recorded:
+                        print(f"\nEnd of file reached. Processed {frame_count} frames")
+                        break
+                    # Live data - wait a bit
+                    time.sleep(0.01)
+                    continue
+                
+                # Get frame data using unified interface
+                # For recorded files, get_metadata() will automatically read the frame if needed
+                metadata = capture.get_metadata()
+                temp_array = capture.get_temperature_array()
+                yuyv_frame = capture.get_yuyv_frame()
+                
+                if metadata is None or temp_array is None or yuyv_frame is None:
+                    if is_recorded:
+                        print(f"\nEnd of file reached. Processed {frame_count} frames")
+                        break
+                    continue
+                
+                # Detect objects
+                objects = detect_object_centers(
+                    temp_array=temp_array,
+                    min_temp=metadata.min_temp,
+                    max_temp=metadata.max_temp,
+                    temp_min=args.temp_min,
+                    temp_max=args.temp_max,
+                    min_area=args.min_area
                 )
-                y_offset += 18
+                
+                # Cluster objects
+                clusters = cluster_objects(objects, max_distance=30.0)
+                
+                # Visualize
+                vis_image = visualize_clustered_objects(
+                    temp_array=temp_array,
+                    yuyv_frame=yuyv_frame,
+                    objects=objects,
+                    clusters=clusters,
+                    min_temp=metadata.min_temp,
+                    max_temp=metadata.max_temp
+                )
+                
+                # Add info text
+                if is_recorded:
+                    total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+                    info_text = [
+                        f"Frame: {metadata.seq} / {total_frames}",
+                        f"Objects: {len(objects)}, Clusters: {len(clusters)}",
+                    ]
+                else:
+                    info_text = [
+                        f"Frame: {metadata.seq}",
+                        f"Objects: {len(objects)}, Clusters: {len(clusters)}",
+                    ]
+                
+                # Add detected object temperature range if objects found
+                if objects:
+                    obj_temps = [obj.avg_temperature for obj in objects]
+                    info_text.append(f"Detected: {min(obj_temps):.0f}C - {max(obj_temps):.0f}C")
+                
+                y_offset = 15
+                for text in info_text:
+                    cv2.putText(
+                        vis_image,
+                        text,
+                        (10, y_offset),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        0.4,
+                        (255, 255, 255),
+                        1
+                    )
+                    y_offset += 18
+                
+                # Display
+                cv2.imshow(window_name, vis_image)
+                
+                # Mark frame as read
+                capture.mark_frame_read()
+                frame_count += 1
+                
+                # Handle playback timing for recorded data
+                if is_recorded and args.fps:
+                    elapsed = time.time() - last_display_time
+                    target_delay = 1.0 / args.fps
+                    if elapsed < target_delay:
+                        time.sleep(target_delay - elapsed)
+                    last_display_time = time.time()
             
-            # Display
-            cv2.imshow("Thermal Object Detection", vis_image)
-            
-            # Mark frame as read
-            shm.mark_frame_read()
-            frame_count += 1
-            
-            # Check for quit
+            # Handle keyboard input
             key = cv2.waitKey(1) & 0xFF
             if key == ord('q'):
                 break
+            elif key == ord(' ') and is_recorded:
+                paused = not paused
+                print("Paused" if paused else "Resumed")
         
         print(f"Processed {frame_count} frames")
     
     except KeyboardInterrupt:
         print("\nInterrupted by user")
-    
+    except Exception as e:
+        print(f"Error during processing: {e}")
+        import traceback
+        traceback.print_exc()
     finally:
-        device.stop()
+        capture.release()
         cv2.destroyAllWindows()
         print("Done")
 
 
 if __name__ == "__main__":
     main()
-
