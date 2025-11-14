@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
-Example: Live YOLO v11 Object Detection on Thermal Images
+Example: Live YOLO Human Detection on Thermal Images
 
-This example demonstrates real-time object detection using YOLO v11
-on thermal camera feed. It detects objects and visualizes bounding boxes
-with class labels and confidence scores.
+This example demonstrates real-time human detection using YOLOv8 thermal model
+from Hugging Face (pitangent-ds/YOLOv8-human-detection-thermal) on thermal camera feed.
+It detects humans and visualizes bounding boxes with class labels and confidence scores.
 """
 
 import cv2
@@ -25,10 +25,17 @@ except ImportError:
     print("Install it with: pip install ultralytics")
     exit(1)
 
+try:
+    from huggingface_hub import hf_hub_download
+    HF_AVAILABLE = True
+except ImportError:
+    HF_AVAILABLE = False
+    print("Warning: huggingface_hub not available. Install it with: pip install huggingface_hub")
+
 
 def main():
-    """Main function to run live object detection"""
-    print("Starting YOLO v11 Object Detection on Thermal Camera...")
+    """Main function to run live human detection on thermal images"""
+    print("Starting YOLOv8 Human Detection on Thermal Camera...")
     print("Press 'q' to quit")
     print("Press 'l' to toggle labels")
     print("Press 'c' to toggle confidence scores")
@@ -41,13 +48,23 @@ def main():
     try:
         capture = ThermalCapture()  # None/0/empty string defaults to live camera
         
-        # Initialize YOLO object detector
-        # Use default nano model for edge devices
-        # For custom thermal model, use: model_path="custom_thermal_object.pt"
-        print("Loading YOLO v11 object detection model (this may take a moment on first run)...")
-        conf_threshold = 0.25
+        # Download and initialize YOLO object detector with Hugging Face thermal model
+        print("Downloading YOLOv8 human detection thermal model from Hugging Face...")
+        if not HF_AVAILABLE:
+            print("ERROR: huggingface_hub package is required for this model.")
+            print("Install it with: pip install huggingface_hub")
+            return
+        
+        model_path = hf_hub_download(
+            repo_id="pitangent-ds/YOLOv8-human-detection-thermal",
+            filename="model.pt"
+        )
+        print(f"Model downloaded to: {model_path}")
+        
+        print("Loading YOLO thermal detection model...")
+        conf_threshold = 0.6  # Using 0.6 as in the provided example
         detector = YOLOObjectDetector(
-            model_size="nano",  # Options: "nano", "small", "medium", "large", "xlarge"
+            model_path=model_path,
             conf_threshold=conf_threshold,
             iou_threshold=0.45,
         )
@@ -63,7 +80,7 @@ def main():
         fps_start_time = time.time()
         fps = 0.0
         
-        window_name = "YOLO Object Detection - Thermal Camera"
+        window_name = "YOLOv8 Human Detection - Thermal Camera"
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(window_name, 480, 640)
         

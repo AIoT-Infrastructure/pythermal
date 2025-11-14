@@ -50,3 +50,17 @@ USBSDKLog/
 # OS
 .DS_Store
 Thumbs.db
+
+# Hugging Face and models
+.cache/
+models/
+*.pt
+*.onnx
+*.pb
+*.pth
+*.h5
+*.hdf5
+*.ckpt
+*.pkl
+*.joblib
+*.joblib
