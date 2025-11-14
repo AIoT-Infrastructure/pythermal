@@ -11,8 +11,7 @@ import cv2
 import numpy as np
 import time
 from pythermal import (
-    ThermalDevice,
-    ThermalSharedMemory,
+    ThermalCapture,
     WIDTH,
     HEIGHT,
 )
@@ -36,15 +35,11 @@ def main():
     print("Press '+' to increase confidence threshold")
     print("Press '-' to decrease confidence threshold")
     
-    # Initialize thermal device
-    device = ThermalDevice()
+    # Initialize thermal capture (unified interface for live or recorded)
+    print("Initializing thermal capture...")
+    capture = None
     try:
-        device.start()
-        shm = device.get_shared_memory()
-        
-        if not shm.initialize():
-            print("Failed to initialize shared memory")
-            return
+        capture = ThermalCapture()  # None/0/empty string defaults to live camera
         
         # Initialize YOLO object detector
         # Use default nano model for edge devices
@@ -63,7 +58,8 @@ def main():
         show_labels = True
         show_conf = True
         
-        frame_count = 0
+        frame_count = 0  # For FPS calculation (resets every second)
+        total_frame_count = 0  # Total frames processed
         fps_start_time = time.time()
         fps = 0.0
         
@@ -72,19 +68,19 @@ def main():
         cv2.resizeWindow(window_name, 480, 640)
         
         while True:
-            if not shm.has_new_frame():
+            if not capture.has_new_frame():
                 time.sleep(0.01)
                 continue
             
             # Get frame data
-            metadata = shm.get_metadata()
+            metadata = capture.get_metadata()
             if metadata is None:
                 continue
             
             # Read YUYV frame and convert to BGR
-            yuyv_frame = shm.get_yuyv_frame()
+            yuyv_frame = capture.get_yuyv_frame()
             if yuyv_frame is None:
-                shm.mark_frame_read()
+                capture.mark_frame_read()
                 continue
             
             # Convert YUYV to BGR for YOLO
@@ -107,6 +103,7 @@ def main():
             
             # Calculate FPS
             frame_count += 1
+            total_frame_count += 1
             elapsed = time.time() - fps_start_time
             if elapsed >= 1.0:
                 fps = frame_count / elapsed
@@ -167,7 +164,7 @@ def main():
             cv2.imshow(window_name, vis_image)
             
             # Mark frame as read
-            shm.mark_frame_read()
+            capture.mark_frame_read()
             
             # Handle keyboard input
             key = cv2.waitKey(1) & 0xFF
@@ -186,18 +183,25 @@ def main():
                 conf_threshold = max(0.0, conf_threshold - 0.05)
                 print(f"Confidence threshold: {conf_threshold:.2f}")
         
-        print(f"Processed {frame_count} frames")
+        print(f"Processed {total_frame_count} frames")
     
     except KeyboardInterrupt:
         print("\nInterrupted by user")
     
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}")
+    except RuntimeError as e:
+        print(f"ERROR: {e}")
+    except ValueError as e:
+        print(f"ERROR: Invalid file format - {e}")
     except Exception as e:
         print(f"Error: {e}")
         import traceback
         traceback.print_exc()
     
     finally:
-        device.stop()
+        if capture is not None:
+            capture.release()
         cv2.destroyAllWindows()
         print("Done")
 

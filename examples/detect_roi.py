@@ -8,9 +8,9 @@ It creates a default center 30x30 ROI and shows how to detect objects only withi
 
 import cv2
 import numpy as np
+import time
 from pythermal import (
-    ThermalDevice,
-    ThermalSharedMemory,
+    ThermalCapture,
     detect_object_centers,
     cluster_objects,
     ROIManager,
@@ -182,15 +182,11 @@ def main():
     print("Starting ROI-based zone monitoring...")
     print("Press 'q' to quit")
     
-    # Initialize thermal device
-    device = ThermalDevice()
+    # Initialize thermal capture (unified interface for live or recorded)
+    print("Initializing thermal capture...")
+    capture = None
     try:
-        device.start()
-        shm = device.get_shared_memory()
-        
-        if not shm.initialize():
-            print("Failed to initialize shared memory")
-            return
+        capture = ThermalCapture()  # None/0/empty string defaults to live camera
         
         # Initialize ROI manager
         roi_manager = ROIManager(image_width=TEMP_WIDTH, image_height=TEMP_HEIGHT)
@@ -211,19 +207,20 @@ def main():
         frame_count = 0
         
         while True:
-            if not shm.has_new_frame():
+            if not capture.has_new_frame():
+                time.sleep(0.01)
                 continue
             
             # Get frame data
-            metadata = shm.get_metadata()
+            metadata = capture.get_metadata()
             if metadata is None:
                 continue
             
-            temp_array = shm.get_temperature_array()
-            yuyv_frame = shm.get_yuyv_frame()
+            temp_array = capture.get_temperature_array()
+            yuyv_frame = capture.get_yuyv_frame()
             
             if temp_array is None or yuyv_frame is None:
-                shm.mark_frame_read()
+                capture.mark_frame_read()
                 continue
             
             # Detect all objects
@@ -290,7 +287,7 @@ def main():
             cv2.imshow("ROI Zone Monitoring", vis_image)
             
             # Mark frame as read
-            shm.mark_frame_read()
+            capture.mark_frame_read()
             frame_count += 1
             
             # Check for quit
@@ -303,8 +300,20 @@ def main():
     except KeyboardInterrupt:
         print("\nInterrupted by user")
     
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}")
+    except RuntimeError as e:
+        print(f"ERROR: {e}")
+    except ValueError as e:
+        print(f"ERROR: Invalid file format - {e}")
+    except Exception as e:
+        print(f"Error: {e}")
+        import traceback
+        traceback.print_exc()
+    
     finally:
-        device.stop()
+        if capture is not None:
+            capture.release()
         cv2.destroyAllWindows()
         print("Done")
 
