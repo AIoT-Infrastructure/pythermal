@@ -51,8 +51,8 @@ def main():
         # For custom thermal model, use: model_path="custom_thermal_pose.pt"
         print("Loading YOLO v11 pose model (this may take a moment on first run)...")
         detector = YOLOPoseDetector(
-            #model_path="./pythermal/detections/yolo/models/yolov11-pose-best.pt",
-            model_path="./examples/yolo11n-pose.pt",
+            model_path="./pythermal/detections/yolo/models/yolov11-pose-best.pt",
+            #model_path="./examples/yolo11n-pose.pt",
             #model_size="nano",  # Options: "nano", "small", "medium", "large", "xlarge"
             conf_threshold=0.25,
             iou_threshold=0.45,
