@@ -27,22 +27,93 @@ from pythermal import ThermalLiveView, WIDTH, HEIGHT
 class EnhancedLiveView(ThermalLiveView):
     """Enhanced live view with additional color modes"""
     
-    def __init__(self, source=None, clahe_clip_limit=2.0):
+    def __init__(self, source=None):
         """
         Initialize enhanced live view
         
         Args:
             source: File path for recorded .tseq file, or 0/None/empty for live camera (default: live camera)
-            clahe_clip_limit: CLAHE clip limit for contrast enhancement (default: 2.0, higher = more contrast)
         """
         super().__init__(source)
         # Extended view modes
-        self.view_modes = ['yuyv', 'temperature', 'temperature_celsius', 'temperature_clahe']
+        self.view_modes = ['yuyv', 'temperature', 'temperature_celsius']
         self.view_mode_index = 0
         self.view_mode = self.view_modes[self.view_mode_index]
         self._playback_fps = None
-        self.clahe_clip_limit = clahe_clip_limit
+        # CLAHE contrast enhancement parameter (clipLimit)
+        # Higher values = more contrast enhancement (typical range: 1.0-8.0)
+        # Default 3.0 provides noticeable enhancement
+        self.clahe_contrast = 3.0
+        # Store last frame data for re-rendering during pause
+        self._last_frame_data = None
+        self._last_metadata = None
+        self._last_yuyv = None
         
+    def apply_clahe_enhancement(self, image: np.ndarray, is_raw_temp: bool = False) -> np.ndarray:
+        """
+        Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) to image
+        
+        Args:
+            image: Grayscale image (uint8 normalized or uint16 raw temperature)
+            is_raw_temp: If True, image is raw uint16 temperature data
+        
+        Returns:
+            Enhanced grayscale image with improved contrast (uint8)
+        """
+        # If raw temperature data, normalize to uint8 first for CLAHE
+        if is_raw_temp:
+            # Normalize raw uint16 to 0-255 range preserving relative differences
+            raw_min = np.min(image)
+            raw_max = np.max(image)
+            raw_range = raw_max - raw_min
+            if raw_range > 0:
+                normalized = ((image.astype(np.float32) - raw_min) / raw_range * 255.0).astype(np.uint8)
+            else:
+                normalized = np.zeros_like(image, dtype=np.uint8)
+        else:
+            normalized = image
+        
+        # Create CLAHE object with current contrast setting
+        # tileGridSize is the number of tiles (not pixel size)
+        # For 96x96 images: (8,8) = 8x8 tiles = 12x12 pixels per tile (good balance)
+        # For 240x240 images: (8,8) = 8x8 tiles = 30x30 pixels per tile
+        # Smaller number of tiles = larger tiles = less local, more global enhancement
+        # Larger number of tiles = smaller tiles = more local enhancement
+        if normalized.shape[0] >= 96:
+            tile_grid_size = 8  # 8x8 tiles for good local contrast
+        elif normalized.shape[0] >= 48:
+            tile_grid_size = 4
+        else:
+            tile_grid_size = 2
+        clahe = cv2.createCLAHE(clipLimit=self.clahe_contrast, tileGridSize=(tile_grid_size, tile_grid_size))
+        # Apply CLAHE enhancement
+        enhanced = clahe.apply(normalized)
+        return enhanced
+    
+    def get_temperature_view(self, temp_array: np.ndarray, min_temp: float, max_temp: float) -> np.ndarray:
+        """
+        Convert temperature array to visualizable BGR image with CLAHE enhancement
+        
+        Args:
+            temp_array: 96x96 array of 16-bit temperature values
+            min_temp: Minimum temperature for normalization
+            max_temp: Maximum temperature for normalization
+            
+        Returns:
+            BGR image (240x240) with temperature data upscaled and colorized
+        """
+        # Apply CLAHE to raw temperature data BEFORE normalization for better contrast enhancement
+        # CLAHE already outputs uint8 in 0-255 range, so no need to re-normalize
+        enhanced = self.apply_clahe_enhancement(temp_array, is_raw_temp=True)
+        
+        # Upscale from 96x96 to 240x240 using INTER_LINEAR
+        upscaled = cv2.resize(enhanced, (WIDTH, HEIGHT), interpolation=cv2.INTER_LINEAR)
+        
+        # Apply colormap for better visualization (using COLORMAP_HOT)
+        colored = cv2.applyColorMap(upscaled, cv2.COLORMAP_HOT)
+        
+        return colored
+    
     def get_temperature_celsius_view(self, temp_array: np.ndarray, 
                                      min_temp: float, max_temp: float) -> np.ndarray:
         """
@@ -56,8 +127,11 @@ class EnhancedLiveView(ThermalLiveView):
         Returns:
             BGR image (240x240) with temperature data colorized
         """
-        # Convert raw temperature array to Celsius
-        temp_float = temp_array.astype(np.float32)
+        # Apply CLAHE to raw temperature data BEFORE conversion to Celsius
+        enhanced = self.apply_clahe_enhancement(temp_array, is_raw_temp=True)
+        
+        # Convert enhanced temperature array to Celsius
+        temp_float = enhanced.astype(np.float32)
         raw_min = np.min(temp_float)
         raw_max = np.max(temp_float)
         raw_range = raw_max - raw_min
@@ -83,52 +157,47 @@ class EnhancedLiveView(ThermalLiveView):
         
         return colored
     
-    def get_temperature_clahe_view(self, temp_array: np.ndarray, 
-                                   min_temp: float, max_temp: float) -> np.ndarray:
-        """
-        Convert temperature array to colorized view with CLAHE contrast enhancement
-        
-        Args:
-            temp_array: 96x96 array of 16-bit temperature values
-            min_temp: Minimum temperature from metadata
-            max_temp: Maximum temperature from metadata
-        
-        Returns:
-            BGR image (240x240) with temperature data colorized and contrast-enhanced using CLAHE
-        """
-        # Convert raw temperature array to float
-        temp_float = temp_array.astype(np.float32)
-        
-        # Get actual min/max from the array
-        raw_min = np.min(temp_float)
-        raw_max = np.max(temp_float)
-        raw_range = raw_max - raw_min
-        
-        # Normalize to 0-255 range for CLAHE processing
-        if raw_range > 0:
-            normalized = ((temp_float - raw_min) / raw_range) * 255.0
-            normalized = normalized.clip(0, 255).astype(np.uint8)
-        else:
-            normalized = np.zeros((96, 96), dtype=np.uint8)
-        
-        # Apply CLAHE (Contrast Limited Adaptive Histogram Equalization)
-        # Create CLAHE object with specified clip limit
-        clahe = cv2.createCLAHE(clipLimit=self.clahe_clip_limit, tileGridSize=(8, 8))
-        enhanced = clahe.apply(normalized)
-        
-        # Upscale from 96x96 to 240x240
-        upscaled = cv2.resize(enhanced, (WIDTH, HEIGHT), interpolation=cv2.INTER_LINEAR)
-        
-        # Apply colormap for visualization
-        colored = cv2.applyColorMap(upscaled, cv2.COLORMAP_JET)
-        
-        return colored
-    
     def toggle_view_mode(self):
         """Toggle to next view mode"""
         self.view_mode_index = (self.view_mode_index + 1) % len(self.view_modes)
         self.view_mode = self.view_modes[self.view_mode_index]
         print(f"Switched to {self.view_mode.upper()} view")
+    
+    def adjust_contrast(self, delta: float):
+        """Adjust CLAHE contrast level"""
+        # Increase range and step size for more noticeable changes
+        self.clahe_contrast = max(1.0, min(8.0, self.clahe_contrast + delta))
+        print(f"Contrast level: {self.clahe_contrast:.2f} (range: 1.0-8.0)")
+    
+    def _rerender_frame(self, window_name: str):
+        """Re-render the last frame with current settings (used during pause)"""
+        if not self._last_metadata:
+            return
+        
+        metadata = self._last_metadata
+        seq_val = metadata.seq
+        min_temp = metadata.min_temp
+        max_temp = metadata.max_temp
+        avg_temp = metadata.avg_temp
+        
+        # Re-render based on current view mode
+        if self.view_mode == 'yuyv' and self._last_yuyv is not None:
+            thermal_image = self.get_original_yuyv(self._last_yuyv)
+        elif self.view_mode == 'temperature' and self._last_frame_data is not None:
+            thermal_image = self.get_temperature_view(self._last_frame_data, min_temp, max_temp)
+        elif self.view_mode == 'temperature_celsius' and self._last_frame_data is not None:
+            thermal_image = self.get_temperature_celsius_view(self._last_frame_data, min_temp, max_temp)
+        else:
+            return
+        
+        # Draw overlay
+        fps = self.calculate_fps()
+        thermal_image = self.draw_overlay(
+            thermal_image, min_temp, max_temp, avg_temp, seq_val, fps
+        )
+        
+        # Display image
+        cv2.imshow(window_name, thermal_image)
     
     def run(self):
         """Main loop for live view"""
@@ -148,7 +217,9 @@ class EnhancedLiveView(ThermalLiveView):
         
         print("\nControls:")
         print("  'q' - Quit")
-        print("  't' - Toggle view mode (YUYV / Temperature / Temperature Celsius / Temperature CLAHE)")
+        print("  't' - Toggle view mode (YUYV / Temperature / Temperature Celsius)")
+        print("  '+' - Increase contrast")
+        print("  '-' - Decrease contrast")
         print("  Mouse - Hover over image to see temperature")
         if is_recorded:
             print("  SPACE - Pause/Resume")
@@ -181,63 +252,50 @@ class EnhancedLiveView(ThermalLiveView):
                     max_temp = metadata.max_temp
                     avg_temp = metadata.avg_temp
                     
+                    # Store metadata for re-rendering during pause
+                    self._last_metadata = metadata
+                    
+                    # Always try to get both YUYV and temperature data for re-rendering during pause
+                    yuyv = self.capture.get_yuyv_frame()
+                    temp_array = self.capture.get_temperature_array()
+                    
+                    # Store frame data for re-rendering (always store both when available)
+                    if yuyv is not None:
+                        self._last_yuyv = yuyv.copy()
+                    if temp_array is not None:
+                        self._last_frame_data = temp_array.copy()
+                        self.current_temp_data = temp_array.copy()
+                    
                     # Read and display based on view mode
                     if self.view_mode == 'yuyv':
-                        yuyv = self.capture.get_yuyv_frame()
                         if yuyv is None:
                             if is_recorded:
                                 break
                             time.sleep(0.01)
                             continue
-                        
-                        temp_array = self.capture.get_temperature_array()
-                        self.current_temp_data = temp_array.copy() if temp_array is not None else None
                         thermal_image = self.get_original_yuyv(yuyv)
                     
                     elif self.view_mode == 'temperature':
-                        temp_array = self.capture.get_temperature_array()
                         if temp_array is not None:
-                            self.current_temp_data = temp_array.copy()
                             thermal_image = self.get_temperature_view(temp_array, min_temp, max_temp)
+                        elif yuyv is not None:
+                            thermal_image = self.get_original_yuyv(yuyv)
                         else:
-                            yuyv = self.capture.get_yuyv_frame()
-                            if yuyv is not None:
-                                thermal_image = self.get_original_yuyv(yuyv)
-                            else:
-                                if is_recorded:
-                                    break
-                                time.sleep(0.01)
-                                continue
+                            if is_recorded:
+                                break
+                            time.sleep(0.01)
+                            continue
                     
                     elif self.view_mode == 'temperature_celsius':
-                        temp_array = self.capture.get_temperature_array()
                         if temp_array is not None:
-                            self.current_temp_data = temp_array.copy()
                             thermal_image = self.get_temperature_celsius_view(temp_array, min_temp, max_temp)
+                        elif yuyv is not None:
+                            thermal_image = self.get_original_yuyv(yuyv)
                         else:
-                            yuyv = self.capture.get_yuyv_frame()
-                            if yuyv is not None:
-                                thermal_image = self.get_original_yuyv(yuyv)
-                            else:
-                                if is_recorded:
-                                    break
-                                time.sleep(0.01)
-                                continue
-                    
-                    elif self.view_mode == 'temperature_clahe':
-                        temp_array = self.capture.get_temperature_array()
-                        if temp_array is not None:
-                            self.current_temp_data = temp_array.copy()
-                            thermal_image = self.get_temperature_clahe_view(temp_array, min_temp, max_temp)
-                        else:
-                            yuyv = self.capture.get_yuyv_frame()
-                            if yuyv is not None:
-                                thermal_image = self.get_original_yuyv(yuyv)
-                            else:
-                                if is_recorded:
-                                    break
-                                time.sleep(0.01)
-                                continue
+                            if is_recorded:
+                                break
+                            time.sleep(0.01)
+                            continue
                     
                     else:
                         time.sleep(0.01)
@@ -274,6 +332,19 @@ class EnhancedLiveView(ThermalLiveView):
                     break
                 elif key == ord('t'):
                     self.toggle_view_mode()
+                    # Re-render current frame if we have frame data (works during pause and live view)
+                    if self._last_metadata:
+                        self._rerender_frame(window_name)
+                elif key == ord('+') or key == ord('='):
+                    self.adjust_contrast(1.0)  # Increased step size for more noticeable changes
+                    # Re-render current frame if we have frame data (works during pause and live view)
+                    if self._last_metadata:
+                        self._rerender_frame(window_name)
+                elif key == ord('-') or key == ord('_'):
+                    self.adjust_contrast(-1.0)  # Increased step size for more noticeable changes
+                    # Re-render current frame if we have frame data (works during pause and live view)
+                    if self._last_metadata:
+                        self._rerender_frame(window_name)
                 elif key == ord(' ') and is_recorded:
                     paused = not paused
                     print("Paused" if paused else "Resumed")
@@ -320,18 +391,11 @@ Examples:
         default=None,
         help="Target FPS for recorded data playback (default: use original timestamps, live: no limit)"
     )
-    parser.add_argument(
-        "--clahe-clip-limit",
-        type=float,
-        default=2.0,
-        dest="clahe_clip_limit",
-        help="CLAHE clip limit for contrast enhancement (default: 2.0, higher = more contrast, range: 1.0-8.0)"
-    )
     
     args = parser.parse_args()
     
     # Create viewer with unified interface
-    viewer = EnhancedLiveView(source=args.source, clahe_clip_limit=args.clahe_clip_limit)
+    viewer = EnhancedLiveView(source=args.source)
     
     # Store FPS for use in run() if needed
     viewer._playback_fps = args.fps
