@@ -5,37 +5,36 @@ Live View for Thermal Camera - Original Grayscale with Mouse Temperature
 Displays real-time thermal imaging feed in original grayscale.
 Shows temperature at mouse cursor position.
 Press 't' to toggle between YUYV view and 96x96 temperature view.
+Supports both live camera and recorded sequences using ThermalCapture.
 """
 
 import numpy as np
 import cv2
 import time
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Union
 
 from .thermal_shared_memory import (
-    ThermalSharedMemory,
     WIDTH,
     HEIGHT,
     TEMP_WIDTH,
     TEMP_HEIGHT
 )
-from .device import ThermalDevice
+from .sequence_reader import ThermalCapture
 
 
 class ThermalLiveView:
-    """Live view display for thermal camera - original grayscale only"""
+    """Live view display for thermal camera - supports live and recorded sources"""
     
-    def __init__(self, device: Optional[ThermalDevice] = None):
+    def __init__(self, source: Union[str, int, None] = None):
         """
         Initialize thermal live view.
         
         Args:
-            device: Optional ThermalDevice instance. If None, creates a new one.
+            source: File path for recorded .tseq file, or 0/None/empty for live camera (default: live camera)
         """
-        self.device = device
-        self._device_owned = device is None  # Track if we created the device
-        self.shm_reader: Optional[ThermalSharedMemory] = None
+        self.capture: Optional[ThermalCapture] = None
+        self.source = source
         self.frame_count = 0
         self.last_fps_time = time.time()
         self.fps = 0.0
@@ -48,32 +47,31 @@ class ThermalLiveView:
         self.mouse_y = -1
         self.current_temp_data = None
         
-    def initialize_shared_memory(self) -> bool:
-        """Initialize shared memory connection"""
-        # Create device if not provided
-        if self.device is None:
-            self.device = ThermalDevice()
-        
-        # Start device if not running
-        if not self.device.is_running():
-            if not self.device.start():
-                print("Error: Failed to start thermal device")
-                print("Make sure the thermal camera is connected and permissions are set up.")
+    def initialize(self) -> bool:
+        """Initialize thermal capture connection"""
+        try:
+            self.capture = ThermalCapture(self.source)
+            
+            # Read initial metadata to verify connection
+            metadata = self.capture.get_metadata()
+            if metadata:
+                is_recorded = self.capture.is_recorded
+                source_type = "recording" if is_recorded else "live camera"
+                print(f"Thermal capture initialized ({source_type}): {metadata.width}x{metadata.height}")
+                if is_recorded:
+                    import cv2
+                    total_frames = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+                    if total_frames > 0:
+                        print(f"Total frames: {total_frames}")
+                print("Press 'q' to quit")
+                print("Press 't' to toggle between YUYV view and 96x96 temperature view")
+                print("Move mouse over image to see temperature at cursor")
+                return True
+            else:
+                print("Failed to read metadata from thermal capture")
                 return False
-        
-        # Get shared memory reader
-        self.shm_reader = self.device.get_shared_memory()
-        
-        # Read initial metadata to verify connection
-        metadata = self.shm_reader.get_metadata()
-        if metadata:
-            print(f"Shared memory initialized: {metadata.width}x{metadata.height}")
-            print("Press 'q' to quit")
-            print("Press 't' to toggle between YUYV view and 96x96 temperature view")
-            print("Move mouse over image to see temperature at cursor")
-            return True
-        else:
-            print("Failed to read metadata from shared memory")
+        except Exception as e:
+            print(f"Error: Failed to initialize thermal capture: {e}")
             return False
     
     def calculate_temperature_from_pixel(self, x: int, y: int, min_temp: float, max_temp: float) -> Optional[float]:
@@ -303,10 +301,14 @@ class ThermalLiveView:
     
     def run(self):
         """Main loop for live view"""
-        if not self.initialize_shared_memory():
+        if not self.initialize():
             return
         
+        is_recorded = self.capture.is_recorded
         window_name = "Thermal Camera Live View"
+        if is_recorded:
+            window_name += " (Replay)"
+        
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         # Extended image: 240x320 (240 thermal + 80 text area), displayed at 2x scale
         cv2.resizeWindow(window_name, 480, 640)
@@ -317,13 +319,19 @@ class ThermalLiveView:
         try:
             while True:
                 # Check for new frame
-                if not self.shm_reader.has_new_frame():
+                if not self.capture.has_new_frame():
+                    if is_recorded:
+                        print(f"\nEnd of file reached. Processed {self.frame_count} frames")
+                        break
                     time.sleep(0.01)
                     continue
                 
                 # Get metadata
-                metadata = self.shm_reader.get_metadata()
+                metadata = self.capture.get_metadata()
                 if not metadata:
+                    if is_recorded:
+                        print(f"\nEnd of file reached. Processed {self.frame_count} frames")
+                        break
                     time.sleep(0.01)
                     continue
                 
@@ -335,20 +343,22 @@ class ThermalLiveView:
                 # Read and display based on view mode
                 if self.view_mode == 'yuyv':
                     # Read YUYV data
-                    yuyv = self.shm_reader.get_yuyv_frame()
+                    yuyv = self.capture.get_yuyv_frame()
                     if yuyv is None:
+                        if is_recorded:
+                            break
                         time.sleep(0.01)
                         continue
                     
                     # Read temperature data for accurate temperature calculation
-                    temp_array = self.shm_reader.get_temperature_array()
+                    temp_array = self.capture.get_temperature_array()
                     self.current_temp_data = temp_array.copy() if temp_array is not None else None
                     
                     # Show original grayscale
                     thermal_image = self.get_original_yuyv(yuyv)
                 else:  # temperature view
                     # Read temperature array
-                    temp_array = self.shm_reader.get_temperature_array()
+                    temp_array = self.capture.get_temperature_array()
                     if temp_array is not None:
                         self.current_temp_data = temp_array.copy()
                         
@@ -356,10 +366,12 @@ class ThermalLiveView:
                         thermal_image = self.get_temperature_view(temp_array, min_temp, max_temp)
                     else:
                         # Fallback to YUYV if temperature data unavailable
-                        yuyv = self.shm_reader.get_yuyv_frame()
+                        yuyv = self.capture.get_yuyv_frame()
                         if yuyv is not None:
                             thermal_image = self.get_original_yuyv(yuyv)
                         else:
+                            if is_recorded:
+                                break
                             time.sleep(0.01)
                             continue
                 
@@ -376,7 +388,7 @@ class ThermalLiveView:
                 cv2.imshow(window_name, thermal_image)
                 
                 # Mark frame as read
-                self.shm_reader.mark_frame_read()
+                self.capture.mark_frame_read()
                 
                 # Handle keyboard input
                 key = cv2.waitKey(1) & 0xFF
@@ -394,14 +406,15 @@ class ThermalLiveView:
             print("\nStopping live view...")
         except Exception as e:
             print(f"Error during live view: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             self.cleanup()
     
     def cleanup(self):
         """Cleanup resources"""
-        # Cleanup device only if we created it
-        if self.device is not None and self._device_owned:
-            self.device.cleanup()
+        if self.capture:
+            self.capture.release()
         cv2.destroyAllWindows()
         print("Live view stopped")
 

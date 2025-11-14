@@ -21,18 +21,25 @@ import time
 from datetime import datetime
 from typing import Optional
 
-from pythermal import ThermalDevice, ThermalLiveView, ThermalSharedMemory, ThermalRecorder, WIDTH, HEIGHT
+from pythermal import ThermalLiveView, WIDTH, HEIGHT
 
 
 class EnhancedLiveView(ThermalLiveView):
     """Enhanced live view with additional color modes"""
     
-    def __init__(self, device: Optional[ThermalDevice] = None):
-        super().__init__(device)
+    def __init__(self, source=None):
+        """
+        Initialize enhanced live view
+        
+        Args:
+            source: File path for recorded .tseq file, or 0/None/empty for live camera (default: live camera)
+        """
+        super().__init__(source)
         # Extended view modes
         self.view_modes = ['yuyv', 'temperature', 'temperature_celsius']
         self.view_mode_index = 0
         self.view_mode = self.view_modes[self.view_mode_index]
+        self._playback_fps = None
         
     def get_temperature_celsius_view(self, temp_array: np.ndarray, 
                                      min_temp: float, max_temp: float) -> np.ndarray:
@@ -43,23 +50,20 @@ class EnhancedLiveView(ThermalLiveView):
             temp_array: 96x96 array of 16-bit temperature values
             min_temp: Minimum temperature from metadata
             max_temp: Maximum temperature from metadata
-            
+        
         Returns:
             BGR image (240x240) with temperature data colorized
         """
-        # Get temperature map in Celsius
-        temp_celsius = self.shm_reader.get_temperature_map_celsius()
-        if temp_celsius is None:
-            # Fallback to raw temperature array
-            temp_float = temp_array.astype(np.float32)
-            raw_min = np.min(temp_float)
-            raw_max = np.max(temp_float)
-            raw_range = raw_max - raw_min
-            if raw_range > 0:
-                normalized = (temp_float - raw_min) / raw_range
-                temp_celsius = min_temp + normalized * (max_temp - min_temp)
-            else:
-                temp_celsius = np.full((96, 96), (min_temp + max_temp) / 2.0, dtype=np.float32)
+        # Convert raw temperature array to Celsius
+        temp_float = temp_array.astype(np.float32)
+        raw_min = np.min(temp_float)
+        raw_max = np.max(temp_float)
+        raw_range = raw_max - raw_min
+        if raw_range > 0:
+            normalized = (temp_float - raw_min) / raw_range
+            temp_celsius = min_temp + normalized * (max_temp - min_temp)
+        else:
+            temp_celsius = np.full((96, 96), (min_temp + max_temp) / 2.0, dtype=np.float32)
         
         # Upscale from 96x96 to 240x240
         upscaled = cv2.resize(temp_celsius, (WIDTH, HEIGHT), interpolation=cv2.INTER_LINEAR)
@@ -85,10 +89,14 @@ class EnhancedLiveView(ThermalLiveView):
     
     def run(self):
         """Main loop for live view"""
-        if not self.initialize_shared_memory():
+        if not self.initialize():
             return
         
+        is_recorded = self.capture.is_recorded
         window_name = "PyThermal Live View"
+        if is_recorded:
+            window_name += " (Replay)"
+        
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(window_name, 480, 640)
         
@@ -99,81 +107,108 @@ class EnhancedLiveView(ThermalLiveView):
         print("  'q' - Quit")
         print("  't' - Toggle view mode (YUYV / Temperature / Temperature Celsius)")
         print("  Mouse - Hover over image to see temperature")
+        if is_recorded:
+            print("  SPACE - Pause/Resume")
         print()
+        
+        paused = False
+        last_display_time = time.time()
         
         try:
             while True:
-                # Check for new frame
-                if not self.shm_reader.has_new_frame():
-                    time.sleep(0.01)
-                    continue
-                
-                # Get metadata
-                metadata = self.shm_reader.get_metadata()
-                if not metadata:
-                    time.sleep(0.01)
-                    continue
-                
-                seq_val = metadata.seq
-                min_temp = metadata.min_temp
-                max_temp = metadata.max_temp
-                avg_temp = metadata.avg_temp
-                
-                # Read and display based on view mode
-                if self.view_mode == 'yuyv':
-                    yuyv = self.shm_reader.get_yuyv_frame()
-                    if yuyv is None:
+                if not paused:
+                    # Check for new frame
+                    if not self.capture.has_new_frame():
+                        if is_recorded:
+                            print(f"\nEnd of file reached. Processed {self.frame_count} frames")
+                            break
                         time.sleep(0.01)
                         continue
                     
-                    temp_array = self.shm_reader.get_temperature_array()
-                    self.current_temp_data = temp_array.copy() if temp_array is not None else None
-                    thermal_image = self.get_original_yuyv(yuyv)
-                
-                elif self.view_mode == 'temperature':
-                    temp_array = self.shm_reader.get_temperature_array()
-                    if temp_array is not None:
-                        self.current_temp_data = temp_array.copy()
-                        thermal_image = self.get_temperature_view(temp_array, min_temp, max_temp)
-                    else:
-                        yuyv = self.shm_reader.get_yuyv_frame()
-                        if yuyv is not None:
-                            thermal_image = self.get_original_yuyv(yuyv)
-                        else:
+                    # Get metadata
+                    metadata = self.capture.get_metadata()
+                    if not metadata:
+                        if is_recorded:
+                            break
+                        time.sleep(0.01)
+                        continue
+                    
+                    seq_val = metadata.seq
+                    min_temp = metadata.min_temp
+                    max_temp = metadata.max_temp
+                    avg_temp = metadata.avg_temp
+                    
+                    # Read and display based on view mode
+                    if self.view_mode == 'yuyv':
+                        yuyv = self.capture.get_yuyv_frame()
+                        if yuyv is None:
+                            if is_recorded:
+                                break
                             time.sleep(0.01)
                             continue
-                
-                elif self.view_mode == 'temperature_celsius':
-                    temp_array = self.shm_reader.get_temperature_array()
-                    if temp_array is not None:
-                        self.current_temp_data = temp_array.copy()
-                        thermal_image = self.get_temperature_celsius_view(temp_array, min_temp, max_temp)
-                    else:
-                        yuyv = self.shm_reader.get_yuyv_frame()
-                        if yuyv is not None:
-                            thermal_image = self.get_original_yuyv(yuyv)
+                        
+                        temp_array = self.capture.get_temperature_array()
+                        self.current_temp_data = temp_array.copy() if temp_array is not None else None
+                        thermal_image = self.get_original_yuyv(yuyv)
+                    
+                    elif self.view_mode == 'temperature':
+                        temp_array = self.capture.get_temperature_array()
+                        if temp_array is not None:
+                            self.current_temp_data = temp_array.copy()
+                            thermal_image = self.get_temperature_view(temp_array, min_temp, max_temp)
                         else:
-                            time.sleep(0.01)
-                            continue
-                
-                else:
-                    time.sleep(0.01)
-                    continue
-                
-                # Calculate FPS
-                self.frame_count += 1
-                fps = self.calculate_fps()
-                
-                # Draw overlay with mouse temperature
-                thermal_image = self.draw_overlay(
-                    thermal_image, min_temp, max_temp, avg_temp, seq_val, fps
-                )
-                
-                # Display image
-                cv2.imshow(window_name, thermal_image)
-                
-                # Mark frame as read
-                self.shm_reader.mark_frame_read()
+                            yuyv = self.capture.get_yuyv_frame()
+                            if yuyv is not None:
+                                thermal_image = self.get_original_yuyv(yuyv)
+                            else:
+                                if is_recorded:
+                                    break
+                                time.sleep(0.01)
+                                continue
+                    
+                    elif self.view_mode == 'temperature_celsius':
+                        temp_array = self.capture.get_temperature_array()
+                        if temp_array is not None:
+                            self.current_temp_data = temp_array.copy()
+                            thermal_image = self.get_temperature_celsius_view(temp_array, min_temp, max_temp)
+                        else:
+                            yuyv = self.capture.get_yuyv_frame()
+                            if yuyv is not None:
+                                thermal_image = self.get_original_yuyv(yuyv)
+                            else:
+                                if is_recorded:
+                                    break
+                                time.sleep(0.01)
+                                continue
+                    
+                    else:
+                        time.sleep(0.01)
+                        continue
+                    
+                    # Calculate FPS
+                    self.frame_count += 1
+                    fps = self.calculate_fps()
+                    
+                    # Draw overlay with mouse temperature
+                    thermal_image = self.draw_overlay(
+                        thermal_image, min_temp, max_temp, avg_temp, seq_val, fps
+                    )
+                    
+                    # Display image
+                    cv2.imshow(window_name, thermal_image)
+                    
+                    # Mark frame as read
+                    self.capture.mark_frame_read()
+                    
+                    # Handle playback timing for recorded data
+                    if is_recorded and self._playback_fps:
+                        elapsed = time.time() - last_display_time
+                        target_delay = 1.0 / self._playback_fps
+                        if elapsed < target_delay:
+                            time.sleep(target_delay - elapsed)
+                        last_display_time = time.time()
+                    elif is_recorded:
+                        last_display_time = time.time()
                 
                 # Handle keyboard input
                 key = cv2.waitKey(1) & 0xFF
@@ -181,62 +216,61 @@ class EnhancedLiveView(ThermalLiveView):
                     break
                 elif key == ord('t'):
                     self.toggle_view_mode()
+                elif key == ord(' ') and is_recorded:
+                    paused = not paused
+                    print("Paused" if paused else "Resumed")
                 
-                time.sleep(0.01)
+                if not paused:
+                    time.sleep(0.01)
         
         except KeyboardInterrupt:
             print("\nStopping live view...")
         except Exception as e:
             print(f"Error during live view: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
             self.cleanup()
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Live thermal camera view with color/temperature display switching, or replay recorded files"
+        description="Live thermal camera view with color/temperature display switching, or replay recorded files",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Live view (default)
+  python live_view.py
+  
+  # Recorded file replay
+  python live_view.py recordings/thermal_20240101.tseq
+  
+  # Recorded with custom FPS
+  python live_view.py file.tseq --fps 30
+        """
     )
     parser.add_argument(
-        "--device",
+        "source",
         type=str,
+        nargs="?",
         default=None,
-        help="Optional path to native directory (default: use package location)"
-    )
-    parser.add_argument(
-        "--replay",
-        type=str,
-        default=None,
-        help="Replay a recorded .tseq file instead of live view"
+        help="Source: file path for recorded .tseq file, or 0/empty/omit for live camera (default: live camera)"
     )
     parser.add_argument(
         "--fps",
         type=float,
         default=None,
-        help="Target FPS for replay (default: use original timestamps)"
-    )
-    parser.add_argument(
-        "--view-mode",
-        type=str,
-        default="yuyv",
-        choices=["yuyv", "temperature"],
-        help="Initial view mode for replay (default: yuyv)"
+        help="Target FPS for recorded data playback (default: use original timestamps, live: no limit)"
     )
     
     args = parser.parse_args()
     
-    # If replay mode, use the replay function
-    if args.replay:
-        print(f"Replay mode: {args.replay}")
-        ThermalRecorder.replay(args.replay, view_mode=args.view_mode, fps=args.fps)
-        return
+    # Create viewer with unified interface
+    viewer = EnhancedLiveView(source=args.source)
     
-    # Otherwise, do live view
-    # Create device if custom path provided
-    device = None
-    if args.device:
-        device = ThermalDevice(native_dir=args.device)
+    # Store FPS for use in run() if needed
+    viewer._playback_fps = args.fps
     
-    viewer = EnhancedLiveView(device=device)
     viewer.run()
 
 
