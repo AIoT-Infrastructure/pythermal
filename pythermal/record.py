@@ -12,8 +12,7 @@ import numpy as np
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
-from .device import ThermalDevice
-from .thermal_shared_memory import ThermalSharedMemory, WIDTH, HEIGHT, TEMP_WIDTH, TEMP_HEIGHT
+from .core import ThermalDevice, ThermalSharedMemory, WIDTH, HEIGHT, TEMP_WIDTH, TEMP_HEIGHT
 
 
 class ThermalRecorder:
@@ -196,7 +195,7 @@ class ThermalRecorder:
             fps: Target FPS for playback. If None, uses original timestamps.
         """
         from .live_view import ThermalLiveView
-        from .sequence_reader import ThermalSequenceReader
+        from .core import ThermalSequenceReader
         
         try:
             # Use ThermalSequenceReader for better structure

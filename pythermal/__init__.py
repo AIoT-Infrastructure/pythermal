@@ -6,10 +6,12 @@ A lightweight Python library for thermal sensing and analytics on ARM Linux plat
 
 __version__ = "0.1.0"
 
-from .device import ThermalDevice
-from .thermal_shared_memory import (
+from .core import (
+    ThermalDevice,
     ThermalSharedMemory,
     FrameMetadata,
+    ThermalSequenceReader,
+    ThermalCapture,
     WIDTH,
     HEIGHT,
     TEMP_WIDTH,
@@ -17,7 +19,6 @@ from .thermal_shared_memory import (
 )
 from .record import ThermalRecorder
 from .live_view import ThermalLiveView
-from .sequence_reader import ThermalSequenceReader, ThermalCapture
 from .detections import (
     detect_object_centers,
     cluster_objects,

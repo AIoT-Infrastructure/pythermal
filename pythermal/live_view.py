@@ -14,13 +14,13 @@ import time
 from datetime import datetime
 from typing import Optional, Union
 
-from .thermal_shared_memory import (
+from .core import (
+    ThermalCapture,
     WIDTH,
     HEIGHT,
     TEMP_WIDTH,
-    TEMP_HEIGHT
+    TEMP_HEIGHT,
 )
-from .sequence_reader import ThermalCapture
 
 
 class ThermalLiveView:

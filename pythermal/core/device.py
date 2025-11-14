@@ -56,7 +56,7 @@ class ThermalDevice:
         """
         if native_dir is None:
             # Default to package location - detect architecture automatically
-            package_dir = Path(__file__).parent
+            package_dir = Path(__file__).parent.parent
             arch_dir = _detect_native_directory()
             self.native_dir = package_dir / "_native" / arch_dir
         else:
