@@ -118,31 +118,48 @@ pip install ultralytics>=8.0.0
 
 ## 🧠 Quick Start
 
-### 1. Initialize Thermal Device
+### 1. Unified Capture Interface
 
-The `ThermalDevice` class manages the thermal camera initialization by starting `pythermal-recorder` in a separate process and providing access to thermal data via shared memory.
+The `ThermalCapture` class provides a unified interface for both live camera feeds and recorded sequences. It's similar to `cv2.VideoCapture` and automatically handles device initialization.
 
 ```python
-from pythermal import ThermalDevice
+from pythermal import ThermalCapture
 
-# Create and start thermal device
-device = ThermalDevice()
-device.start()  # Starts pythermal-recorder subprocess and initializes shared memory
+# For live camera (default)
+capture = ThermalCapture()  # or ThermalCapture(0) or ThermalCapture(None)
 
-# Access shared memory for reading thermal data
-shm = device.get_shared_memory()
+# For recorded sequence
+capture = ThermalCapture("recordings/thermal_20240101.tseq")
 
-# When done, stop the device
-device.stop()
+# Check for new frame
+if capture.has_new_frame():
+    # Get metadata
+    metadata = capture.get_metadata()
+    print(f"Frame {metadata.seq}: {metadata.min_temp:.1f}°C - {metadata.max_temp:.1f}°C")
+    
+    # Get YUYV frame (240x240)
+    yuyv_frame = capture.get_yuyv_frame()
+    
+    # Get temperature array (96x96, uint16)
+    temp_array = capture.get_temperature_array()
+    
+    # Mark frame as read
+    capture.mark_frame_read()
+
+# Cleanup
+capture.release()
 ```
 
 Or use as a context manager:
 
 ```python
-with ThermalDevice() as device:
-    shm = device.get_shared_memory()
-    # Use shared memory...
-    # Device automatically stops on exit
+with ThermalCapture() as capture:
+    if capture.has_new_frame():
+        metadata = capture.get_metadata()
+        yuyv_frame = capture.get_yuyv_frame()
+        temp_array = capture.get_temperature_array()
+        capture.mark_frame_read()
+    # Automatically releases on exit
 ```
 
 ---
@@ -154,28 +171,20 @@ Display real-time thermal imaging feed:
 ```python
 from pythermal import ThermalLiveView
 
+# For live camera (default)
 viewer = ThermalLiveView()
 viewer.run()  # Opens OpenCV window with live thermal feed
-```
 
-Or with a shared device:
-
-```python
-from pythermal import ThermalDevice, ThermalLiveView
-
-device = ThermalDevice()
-device.start()
-
-viewer = ThermalLiveView(device=device)
-viewer.run()  # Uses the shared device
-
-device.stop()
+# For recorded sequence
+viewer = ThermalLiveView("recordings/thermal_20240101.tseq")
+viewer.run()  # Replays recorded sequence
 ```
 
 **Controls:**
 - Press `q` to quit
 - Press `t` to toggle between YUYV view and temperature view
 - Move mouse over image to see temperature at cursor position
+- Press `SPACE` to pause/resume (for recorded sequences)
 
 ---
 
@@ -201,30 +210,50 @@ This records both:
 
 ### 4. Access Thermal Data Directly
 
+Using the unified `ThermalCapture` interface (recommended):
+
+```python
+from pythermal import ThermalCapture
+
+capture = ThermalCapture()  # Live camera, or pass file path for recorded data
+
+# Check for new frame
+if capture.has_new_frame():
+    # Get metadata
+    metadata = capture.get_metadata()
+    print(f"Frame {metadata.seq}: {metadata.min_temp:.1f}°C - {metadata.max_temp:.1f}°C")
+    
+    # Get YUYV frame (240x240)
+    yuyv_frame = capture.get_yuyv_frame()
+    
+    # Get temperature array (96x96, uint16)
+    temp_array = capture.get_temperature_array()
+    
+    # Mark frame as read
+    capture.mark_frame_read()
+
+capture.release()
+```
+
+**Advanced: Direct Shared Memory Access**
+
+For advanced use cases, you can access the shared memory interface directly:
+
 ```python
 from pythermal import ThermalDevice, ThermalSharedMemory
 
 device = ThermalDevice()
 device.start()
-
 shm = device.get_shared_memory()
 
-# Check for new frame
 if shm.has_new_frame():
-    # Get metadata
     metadata = shm.get_metadata()
-    print(f"Frame {metadata.seq}: {metadata.min_temp:.1f}°C - {metadata.max_temp:.1f}°C")
-    
-    # Get YUYV frame
     yuyv_frame = shm.get_yuyv_frame()
-    
-    # Get temperature array (96x96, uint16)
     temp_array = shm.get_temperature_array()
     
     # Get temperature map in Celsius (96x96, float32)
     temp_celsius = shm.get_temperature_map_celsius()
     
-    # Mark frame as read
     shm.mark_frame_read()
 
 device.stop()
@@ -237,15 +266,13 @@ device.stop()
 Detect objects based on temperature ranges and visualize them with clustering:
 
 ```python
-from pythermal import ThermalDevice, detect_object_centers, cluster_objects
+from pythermal import ThermalCapture, detect_object_centers, cluster_objects
 
-device = ThermalDevice()
-device.start()
-shm = device.get_shared_memory()
+capture = ThermalCapture()  # Live camera, or pass file path for recorded data
 
-if shm.has_new_frame():
-    metadata = shm.get_metadata()
-    temp_array = shm.get_temperature_array()
+if capture.has_new_frame():
+    metadata = capture.get_metadata()
+    temp_array = capture.get_temperature_array()
     
     # Detect objects in temperature range (default: 31-39°C for human body)
     objects = detect_object_centers(
@@ -265,11 +292,13 @@ if shm.has_new_frame():
     for obj in objects:
         print(f"Object at ({obj.center_x:.1f}, {obj.center_y:.1f}): "
               f"{obj.avg_temperature:.1f}°C")
+    
+    capture.mark_frame_read()
 
-device.stop()
+capture.release()
 ```
 
-See `examples/detect_objects.py` for a complete visualization example.
+See `examples/detect_objects.py` for a complete visualization example. All examples support both live camera feeds and recorded sequences using the `ThermalCapture` interface.
 
 ---
 
@@ -278,20 +307,18 @@ See `examples/detect_objects.py` for a complete visualization example.
 Detect objects and human poses using YOLO v11 models:
 
 ```python
-from pythermal import ThermalDevice
+from pythermal import ThermalCapture
 from pythermal.detections.yolo import YOLOObjectDetector, YOLOPoseDetector
 import cv2
 
-device = ThermalDevice()
-device.start()
-shm = device.get_shared_memory()
+capture = ThermalCapture()  # Live camera, or pass file path for recorded data
 
 # Initialize YOLO detectors (default models auto-download on first use)
 object_detector = YOLOObjectDetector(model_size="nano")  # Options: nano, small, medium, large, xlarge
 pose_detector = YOLOPoseDetector(model_size="nano")
 
-if shm.has_new_frame():
-    yuyv_frame = shm.get_yuyv_frame()
+if capture.has_new_frame():
+    yuyv_frame = capture.get_yuyv_frame()
     bgr_frame = cv2.cvtColor(yuyv_frame, cv2.COLOR_YUV2BGR_YUYV)
     
     # Object detection
@@ -308,8 +335,10 @@ if shm.has_new_frame():
     vis_image = object_detector.visualize(bgr_frame, objects)
     # or
     vis_image = pose_detector.visualize(bgr_frame, poses)
+    
+    capture.mark_frame_read()
 
-device.stop()
+capture.release()
 ```
 
 #### Using Custom Thermal Models
@@ -363,8 +392,10 @@ After running, disconnect and reconnect your thermal camera, and log out/in for 
 
 | Class                 | Purpose                                         |
 | --------------------- | ----------------------------------------------- |
-| `ThermalDevice`       | Manages thermal camera initialization via subprocess and shared memory access |
-| `ThermalSharedMemory` | Reads thermal data from shared memory (YUYV frames, temperature arrays, metadata) |
+| `ThermalCapture`      | **Unified interface** for live camera feeds and recorded sequences (recommended) |
+| `ThermalDevice`       | Manages thermal camera initialization via subprocess and shared memory access (advanced) |
+| `ThermalSharedMemory` | Reads thermal data from shared memory (YUYV frames, temperature arrays, metadata) (advanced) |
+| `ThermalSequenceReader` | Reads pre-recorded thermal sequences from `.tseq` files |
 | `ThermalRecorder`     | Records raw and colored frames to files        |
 | `ThermalLiveView`     | Displays live thermal imaging feed with OpenCV  |
 | `FrameMetadata`       | Named tuple containing frame metadata (seq, flag, dimensions, temperatures) |
@@ -540,8 +571,12 @@ The `ThermalDevice` class:
 pythermal/
 ├── pythermal/
 │   ├── __init__.py
-│   ├── device.py              # ThermalDevice class (manages subprocess)
-│   ├── thermal_shared_memory.py  # Shared memory reader
+│   ├── core/                   # Core thermal camera components
+│   │   ├── __init__.py
+│   │   ├── device.py              # ThermalDevice class (manages subprocess)
+│   │   ├── thermal_shared_memory.py  # Shared memory reader
+│   │   ├── sequence_reader.py    # ThermalSequenceReader for recorded files
+│   │   └── capture.py            # ThermalCapture unified interface
 │   ├── record.py              # ThermalRecorder class
 │   ├── live_view.py           # ThermalLiveView class
 │   ├── detections/            # Object detection module
@@ -549,11 +584,6 @@ pythermal/
 │   │   ├── utils.py           # Shared utilities and shape analysis
 │   │   ├── temperature_detection.py  # Temperature-based detection
 │   │   ├── motion_detection.py       # Background subtraction and motion detection
-│   │   └── roi.py             # ROI management and zone monitoring
-│   ├── usb_setup/             # USB setup scripts (included in package)
-│   │   ├── setup.sh           # USB permissions setup script
-│   │   ├── setup-thermal-permissions.sh
-│   │   └── 99-thermal-camera.rules  # udev rules file
 │   │   ├── roi.py             # ROI management and zone monitoring
 │   │   └── yolo/              # YOLO v11 detection module
 │   │       ├── __init__.py
@@ -561,6 +591,10 @@ pythermal/
 │   │       ├── pose_detection.py    # YOLO pose detection
 │   │       └── models/              # Custom thermal models directory
 │   │           └── README.md         # Instructions for custom models
+│   ├── usb_setup/             # USB setup scripts (included in package)
+│   │   ├── setup.sh           # USB permissions setup script
+│   │   ├── setup-thermal-permissions.sh
+│   │   └── 99-thermal-camera.rules  # udev rules file
 │   └── _native/
 │       ├── linux64/           # x86_64 binaries
 │       │   ├── pythermal-recorder
@@ -573,14 +607,11 @@ pythermal/
 │   ├── record_thermal.py
 │   ├── detect_objects.py      # Object detection visualization example
 │   ├── detect_motion.py       # Motion detection example
-│   └── detect_roi.py          # ROI zone monitoring example
-├── setup.sh                   # Full setup script (permissions, dependencies, compilation)
-├── setup.py                   # Python package setup (includes automatic USB setup)
 │   ├── detect_roi.py          # ROI zone monitoring example
 │   ├── yolo_object_detection.py  # YOLO object detection example
 │   └── yolo_pose_detection.py   # YOLO pose detection example
-├── setup.sh                   # Setup script for permissions and compilation
-├── setup.py                   # Python package setup
+├── setup.sh                   # Full setup script (permissions, dependencies, compilation)
+├── setup.py                   # Python package setup (includes automatic USB setup)
 └── README.md
 ```
 
