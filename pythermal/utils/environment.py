@@ -79,7 +79,7 @@ def estimate_environment_temperature_v1(
     Returns:
         Estimated environment temperature in Celsius (5th percentile, smoothed), or None if input is invalid
     """
-    global _env_temp_history, _env_temp_smoothed
+    global _env_temp_smoothed
     
     # Get raw estimate
     raw_estimate = estimate_environment_temperature(temp_array, min_temp, max_temp, percentile=5.0)
