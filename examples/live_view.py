@@ -348,8 +348,15 @@ class EnhancedLiveView(ThermalLiveView):
                 elif key == ord(' ') and is_recorded:
                     paused = not paused
                     print("Paused" if paused else "Resumed")
+                    # Re-render immediately when pausing to show current state
+                    if paused and self._last_metadata:
+                        self._rerender_frame(window_name)
                 
-                if not paused:
+                # When paused, continuously re-render to update mouse temperature display
+                if paused and self._last_metadata:
+                    self._rerender_frame(window_name)
+                    time.sleep(0.01)  # Small delay to prevent excessive CPU usage
+                elif not paused:
                     time.sleep(0.01)
         
         except KeyboardInterrupt:
