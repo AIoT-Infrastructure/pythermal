@@ -21,6 +21,7 @@ from .record import ThermalRecorder
 from .live_view import ThermalLiveView
 from .detections import (
     detect_object_centers,
+    detect_humans_adaptive,
     cluster_objects,
     BackgroundSubtractor,
     detect_moving_objects,
@@ -46,6 +47,7 @@ __all__ = [
     "ThermalSequenceReader",
     "ThermalCapture",
     "detect_object_centers",
+    "detect_humans_adaptive",
     "cluster_objects",
     "BackgroundSubtractor",
     "detect_moving_objects",
