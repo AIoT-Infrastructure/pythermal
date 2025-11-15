@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Optional
 
 from pythermal import ThermalLiveView, WIDTH, HEIGHT
+from pythermal.utils import estimate_environment_temperature_v1
 
 
 class EnhancedLiveView(ThermalLiveView):
@@ -40,7 +41,82 @@ class EnhancedLiveView(ThermalLiveView):
         self.view_mode_index = 0
         self.view_mode = self.view_modes[self.view_mode_index]
         self._playback_fps = None
+        # CLAHE contrast enhancement parameter (clipLimit)
+        # Higher values = more contrast enhancement (typical range: 1.0-8.0)
+        # Default 3.0 provides noticeable enhancement
+        self.clahe_contrast = 3.0
+        # Store last frame data for re-rendering during pause
+        self._last_frame_data = None
+        self._last_metadata = None
+        self._last_yuyv = None
+        # Store environment temperature
+        self._env_temp = None
         
+    def apply_clahe_enhancement(self, image: np.ndarray, is_raw_temp: bool = False) -> np.ndarray:
+        """
+        Apply CLAHE (Contrast Limited Adaptive Histogram Equalization) to image
+        
+        Args:
+            image: Grayscale image (uint8 normalized or uint16 raw temperature)
+            is_raw_temp: If True, image is raw uint16 temperature data
+        
+        Returns:
+            Enhanced grayscale image with improved contrast (uint8)
+        """
+        # If raw temperature data, normalize to uint8 first for CLAHE
+        if is_raw_temp:
+            # Normalize raw uint16 to 0-255 range preserving relative differences
+            raw_min = np.min(image)
+            raw_max = np.max(image)
+            raw_range = raw_max - raw_min
+            if raw_range > 0:
+                normalized = ((image.astype(np.float32) - raw_min) / raw_range * 255.0).astype(np.uint8)
+            else:
+                normalized = np.zeros_like(image, dtype=np.uint8)
+        else:
+            normalized = image
+        
+        # Create CLAHE object with current contrast setting
+        # tileGridSize is the number of tiles (not pixel size)
+        # For 96x96 images: (8,8) = 8x8 tiles = 12x12 pixels per tile (good balance)
+        # For 240x240 images: (8,8) = 8x8 tiles = 30x30 pixels per tile
+        # Smaller number of tiles = larger tiles = less local, more global enhancement
+        # Larger number of tiles = smaller tiles = more local enhancement
+        if normalized.shape[0] >= 96:
+            tile_grid_size = 8  # 8x8 tiles for good local contrast
+        elif normalized.shape[0] >= 48:
+            tile_grid_size = 4
+        else:
+            tile_grid_size = 2
+        clahe = cv2.createCLAHE(clipLimit=self.clahe_contrast, tileGridSize=(tile_grid_size, tile_grid_size))
+        # Apply CLAHE enhancement
+        enhanced = clahe.apply(normalized)
+        return enhanced
+    
+    def get_temperature_view(self, temp_array: np.ndarray, min_temp: float, max_temp: float) -> np.ndarray:
+        """
+        Convert temperature array to visualizable BGR image with CLAHE enhancement
+        
+        Args:
+            temp_array: 96x96 array of 16-bit temperature values
+            min_temp: Minimum temperature for normalization
+            max_temp: Maximum temperature for normalization
+            
+        Returns:
+            BGR image (240x240) with temperature data upscaled and colorized
+        """
+        # Apply CLAHE to raw temperature data BEFORE normalization for better contrast enhancement
+        # CLAHE already outputs uint8 in 0-255 range, so no need to re-normalize
+        enhanced = self.apply_clahe_enhancement(temp_array, is_raw_temp=True)
+        
+        # Upscale from 96x96 to 240x240 using INTER_LINEAR
+        upscaled = cv2.resize(enhanced, (WIDTH, HEIGHT), interpolation=cv2.INTER_LINEAR)
+        
+        # Apply colormap for better visualization (using COLORMAP_HOT)
+        colored = cv2.applyColorMap(upscaled, cv2.COLORMAP_HOT)
+        
+        return colored
+    
     def get_temperature_celsius_view(self, temp_array: np.ndarray, 
                                      min_temp: float, max_temp: float) -> np.ndarray:
         """
@@ -54,8 +130,11 @@ class EnhancedLiveView(ThermalLiveView):
         Returns:
             BGR image (240x240) with temperature data colorized
         """
-        # Convert raw temperature array to Celsius
-        temp_float = temp_array.astype(np.float32)
+        # Apply CLAHE to raw temperature data BEFORE conversion to Celsius
+        enhanced = self.apply_clahe_enhancement(temp_array, is_raw_temp=True)
+        
+        # Convert enhanced temperature array to Celsius
+        temp_float = enhanced.astype(np.float32)
         raw_min = np.min(temp_float)
         raw_max = np.max(temp_float)
         raw_range = raw_max - raw_min
@@ -87,6 +166,89 @@ class EnhancedLiveView(ThermalLiveView):
         self.view_mode = self.view_modes[self.view_mode_index]
         print(f"Switched to {self.view_mode.upper()} view")
     
+    def adjust_contrast(self, delta: float):
+        """Adjust CLAHE contrast level"""
+        # Increase range and step size for more noticeable changes
+        self.clahe_contrast = max(1.0, min(8.0, self.clahe_contrast + delta))
+        print(f"Contrast level: {self.clahe_contrast:.2f} (range: 1.0-8.0)")
+    
+    def _rerender_frame(self, window_name: str):
+        """Re-render the last frame with current settings (used during pause)"""
+        if not self._last_metadata:
+            return
+        
+        metadata = self._last_metadata
+        seq_val = metadata.seq
+        min_temp = metadata.min_temp
+        max_temp = metadata.max_temp
+        avg_temp = metadata.avg_temp
+        
+        # Re-render based on current view mode
+        if self.view_mode == 'yuyv' and self._last_yuyv is not None:
+            thermal_image = self.get_original_yuyv(self._last_yuyv)
+        elif self.view_mode == 'temperature' and self._last_frame_data is not None:
+            thermal_image = self.get_temperature_view(self._last_frame_data, min_temp, max_temp)
+        elif self.view_mode == 'temperature_celsius' and self._last_frame_data is not None:
+            thermal_image = self.get_temperature_celsius_view(self._last_frame_data, min_temp, max_temp)
+        else:
+            return
+        
+        # Re-estimate environment temperature if we have temperature data
+        if self._last_frame_data is not None:
+            self._env_temp = estimate_environment_temperature_v1(
+                self._last_frame_data, min_temp, max_temp
+            )
+        
+        # Draw overlay
+        fps = self.calculate_fps()
+        thermal_image = self.draw_overlay(
+            thermal_image, min_temp, max_temp, avg_temp, seq_val, fps
+        )
+        
+        # Display image
+        cv2.imshow(window_name, thermal_image)
+    
+    def draw_overlay(self, image: np.ndarray, min_temp: float, max_temp: float, avg_temp: float, 
+                     seq: int, fps: float) -> np.ndarray:
+        """
+        Draw temperature and statistics overlay below the frame with room temperature
+        
+        Args:
+            image: BGR image to draw on (240x240)
+            min_temp: Minimum temperature
+            max_temp: Maximum temperature
+            avg_temp: Average temperature
+            seq: Frame sequence number
+            fps: Current FPS
+            
+        Returns:
+            Extended image with text overlay below frame
+        """
+        # Call parent method to get base overlay
+        extended_image = super().draw_overlay(image, min_temp, max_temp, avg_temp, seq, fps)
+        
+        # Add room temperature display if available
+        if self._env_temp is not None:
+            text_area_height = 80
+            text_area_y_start = HEIGHT
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.4
+            thickness = 1
+            
+            # Calculate position for room temperature (right side of temperature readings)
+            y_offset = text_area_y_start + 15 + (15 * 3)  # After Min, Max, Avg
+            
+            # Draw room temperature on the right side
+            room_text = f"Room: {self._env_temp:.1f}C"
+            text_size = cv2.getTextSize(room_text, font, font_scale, thickness)[0]
+            text_x = WIDTH - text_size[0] - 5
+            
+            # Use a distinct color for room temperature (cyan/light blue)
+            cv2.putText(extended_image, room_text, (text_x, y_offset), 
+                       font, font_scale, (200, 255, 255), thickness)
+        
+        return extended_image
+    
     def run(self):
         """Main loop for live view"""
         if not self.initialize():
@@ -106,6 +268,8 @@ class EnhancedLiveView(ThermalLiveView):
         print("\nControls:")
         print("  'q' - Quit")
         print("  't' - Toggle view mode (YUYV / Temperature / Temperature Celsius)")
+        print("  '+' - Increase contrast")
+        print("  '-' - Decrease contrast")
         print("  Mouse - Hover over image to see temperature")
         if is_recorded:
             print("  SPACE - Pause/Resume")
@@ -138,48 +302,50 @@ class EnhancedLiveView(ThermalLiveView):
                     max_temp = metadata.max_temp
                     avg_temp = metadata.avg_temp
                     
+                    # Store metadata for re-rendering during pause
+                    self._last_metadata = metadata
+                    
+                    # Always try to get both YUYV and temperature data for re-rendering during pause
+                    yuyv = self.capture.get_yuyv_frame()
+                    temp_array = self.capture.get_temperature_array()
+                    
+                    # Store frame data for re-rendering (always store both when available)
+                    if yuyv is not None:
+                        self._last_yuyv = yuyv.copy()
+                    if temp_array is not None:
+                        self._last_frame_data = temp_array.copy()
+                        self.current_temp_data = temp_array.copy()
+                    
                     # Read and display based on view mode
                     if self.view_mode == 'yuyv':
-                        yuyv = self.capture.get_yuyv_frame()
                         if yuyv is None:
                             if is_recorded:
                                 break
                             time.sleep(0.01)
                             continue
-                        
-                        temp_array = self.capture.get_temperature_array()
-                        self.current_temp_data = temp_array.copy() if temp_array is not None else None
                         thermal_image = self.get_original_yuyv(yuyv)
                     
                     elif self.view_mode == 'temperature':
-                        temp_array = self.capture.get_temperature_array()
                         if temp_array is not None:
-                            self.current_temp_data = temp_array.copy()
                             thermal_image = self.get_temperature_view(temp_array, min_temp, max_temp)
+                        elif yuyv is not None:
+                            thermal_image = self.get_original_yuyv(yuyv)
                         else:
-                            yuyv = self.capture.get_yuyv_frame()
-                            if yuyv is not None:
-                                thermal_image = self.get_original_yuyv(yuyv)
-                            else:
-                                if is_recorded:
-                                    break
-                                time.sleep(0.01)
-                                continue
+                            if is_recorded:
+                                break
+                            time.sleep(0.01)
+                            continue
                     
                     elif self.view_mode == 'temperature_celsius':
-                        temp_array = self.capture.get_temperature_array()
                         if temp_array is not None:
-                            self.current_temp_data = temp_array.copy()
                             thermal_image = self.get_temperature_celsius_view(temp_array, min_temp, max_temp)
+                        elif yuyv is not None:
+                            thermal_image = self.get_original_yuyv(yuyv)
                         else:
-                            yuyv = self.capture.get_yuyv_frame()
-                            if yuyv is not None:
-                                thermal_image = self.get_original_yuyv(yuyv)
-                            else:
-                                if is_recorded:
-                                    break
-                                time.sleep(0.01)
-                                continue
+                            if is_recorded:
+                                break
+                            time.sleep(0.01)
+                            continue
                     
                     else:
                         time.sleep(0.01)
@@ -188,6 +354,14 @@ class EnhancedLiveView(ThermalLiveView):
                     # Calculate FPS
                     self.frame_count += 1
                     fps = self.calculate_fps()
+                    
+                    # Estimate environment temperature if we have temperature data
+                    if temp_array is not None:
+                        self._env_temp = estimate_environment_temperature_v1(
+                            temp_array, min_temp, max_temp
+                        )
+                    else:
+                        self._env_temp = None
                     
                     # Draw overlay with mouse temperature
                     thermal_image = self.draw_overlay(
@@ -216,11 +390,31 @@ class EnhancedLiveView(ThermalLiveView):
                     break
                 elif key == ord('t'):
                     self.toggle_view_mode()
+                    # Re-render current frame if we have frame data (works during pause and live view)
+                    if self._last_metadata:
+                        self._rerender_frame(window_name)
+                elif key == ord('+') or key == ord('='):
+                    self.adjust_contrast(1.0)  # Increased step size for more noticeable changes
+                    # Re-render current frame if we have frame data (works during pause and live view)
+                    if self._last_metadata:
+                        self._rerender_frame(window_name)
+                elif key == ord('-') or key == ord('_'):
+                    self.adjust_contrast(-1.0)  # Increased step size for more noticeable changes
+                    # Re-render current frame if we have frame data (works during pause and live view)
+                    if self._last_metadata:
+                        self._rerender_frame(window_name)
                 elif key == ord(' ') and is_recorded:
                     paused = not paused
                     print("Paused" if paused else "Resumed")
+                    # Re-render immediately when pausing to show current state
+                    if paused and self._last_metadata:
+                        self._rerender_frame(window_name)
                 
-                if not paused:
+                # When paused, continuously re-render to update mouse temperature display
+                if paused and self._last_metadata:
+                    self._rerender_frame(window_name)
+                    time.sleep(0.01)  # Small delay to prevent excessive CPU usage
+                elif not paused:
                     time.sleep(0.01)
         
         except KeyboardInterrupt:

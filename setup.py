@@ -30,7 +30,7 @@ readme_file = Path(__file__).parent / "README.md"
 long_description = readme_file.read_text() if readme_file.exists() else ""
 
 # Get version from package
-version = "0.2.2"
+version = "0.2.3"
 
 # Find all native binaries to include (both architectures)
 native_base = Path(__file__).parent / "pythermal" / "_native"

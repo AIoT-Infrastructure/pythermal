@@ -21,7 +21,7 @@ from .utils import (
     filter_by_area,
     filter_by_shape,
 )
-from .temperature_detection import detect_object_centers
+from .temperature_detection import detect_object_centers, detect_humans_adaptive
 from .motion_detection import BackgroundSubtractor, detect_moving_objects
 from .roi import ROI, ROIManager
 
@@ -50,6 +50,7 @@ __all__ = [
     "filter_by_shape",
     # Temperature detection
     "detect_object_centers",
+    "detect_humans_adaptive",
     # Motion detection
     "BackgroundSubtractor",
     "detect_moving_objects",

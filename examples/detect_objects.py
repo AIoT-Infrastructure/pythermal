@@ -14,12 +14,14 @@ import time
 from pythermal import (
     ThermalCapture,
     detect_object_centers,
+    detect_humans_adaptive,
     cluster_objects,
     WIDTH,
     HEIGHT,
     TEMP_WIDTH,
     TEMP_HEIGHT,
 )
+from pythermal.utils import estimate_environment_temperature_v1
 
 
 def generate_colors(n: int) -> list:
@@ -165,6 +167,18 @@ Examples:
   
   # Recorded with custom parameters
   python detect_objects.py file.tseq --temp-min 25.0 --temp-max 40.0 --fps 30
+  
+  # Adaptive human detection (automatically adjusts based on room temperature)
+  python detect_objects.py --adaptive
+  
+  # Adaptive detection with known room temperature
+  python detect_objects.py --adaptive --env-temp 22.0
+  
+  # Face-only detection (warmer body parts, α ≈ 0.5–0.7)
+  python detect_objects.py --adaptive --face-only
+  
+  # Face-only with known room temperature
+  python detect_objects.py --adaptive --face-only --env-temp 22.0
         """
     )
     parser.add_argument(
@@ -198,8 +212,41 @@ Examples:
         default=None,
         help="Playback FPS for recorded data (default: use original timestamps, live: no limit)"
     )
+    parser.add_argument(
+        "--adaptive",
+        action="store_true",
+        help="Use adaptive human detection based on environment temperature (default: False)"
+    )
+    parser.add_argument(
+        "--face-only",
+        action="store_true",
+        help="Detect faces only (warmer body parts, α ≈ 0.5–0.7). Requires --adaptive flag."
+    )
+    parser.add_argument(
+        "--env-temp",
+        type=float,
+        default=None,
+        help="Environment temperature in Celsius (for adaptive detection). If not provided, will be estimated from frame."
+    )
+    parser.add_argument(
+        "--min-temp-above-env",
+        type=float,
+        default=2.0,
+        help="Minimum temperature above environment for adaptive detection (default: 2.0°C)"
+    )
+    parser.add_argument(
+        "--max-temp-limit",
+        type=float,
+        default=42.0,
+        help="Maximum temperature limit to avoid detecting hot objects (default: 42.0°C)"
+    )
     
     args = parser.parse_args()
+    
+    # Validate arguments
+    if args.face_only and not args.adaptive:
+        print("ERROR: --face-only requires --adaptive flag")
+        return
     
     # Initialize thermal capture (unified interface)
     print("Initializing thermal capture...")
@@ -259,15 +306,43 @@ Examples:
                         break
                     continue
                 
-                # Detect objects
-                objects = detect_object_centers(
-                    temp_array=temp_array,
-                    min_temp=metadata.min_temp,
-                    max_temp=metadata.max_temp,
-                    temp_min=args.temp_min,
-                    temp_max=args.temp_max,
-                    min_area=args.min_area
-                )
+                # Detect objects using either standard or adaptive method
+                if args.adaptive:
+                    # Use adaptive human detection based on environment temperature
+                    if args.face_only:
+                        # Face-only detection: use narrower alpha range (0.5-0.7) for warmer body parts
+                        objects = detect_humans_adaptive(
+                            temp_array=temp_array,
+                            min_temp=metadata.min_temp,
+                            max_temp=metadata.max_temp,
+                            environment_temp=args.env_temp,
+                            min_area=args.min_area,
+                            min_temp_above_env=args.min_temp_above_env,
+                            max_temp_limit=args.max_temp_limit,
+                            alpha_min=0.5,  # Face/torso range
+                            alpha_max=0.7   # Face/torso range
+                        )
+                    else:
+                        # Full body detection: includes cooler parts (0.4-0.7)
+                        objects = detect_humans_adaptive(
+                            temp_array=temp_array,
+                            min_temp=metadata.min_temp,
+                            max_temp=metadata.max_temp,
+                            environment_temp=args.env_temp,
+                            min_area=args.min_area,
+                            min_temp_above_env=args.min_temp_above_env,
+                            max_temp_limit=args.max_temp_limit
+                        )
+                else:
+                    # Use standard temperature-based detection
+                    objects = detect_object_centers(
+                        temp_array=temp_array,
+                        min_temp=metadata.min_temp,
+                        max_temp=metadata.max_temp,
+                        temp_min=args.temp_min,
+                        temp_max=args.temp_max,
+                        min_area=args.min_area
+                    )
                 
                 # Cluster objects
                 clusters = cluster_objects(objects, max_distance=30.0)
@@ -282,6 +357,16 @@ Examples:
                     max_temp=metadata.max_temp
                 )
                 
+                # Estimate environment temperature for display (if using adaptive)
+                env_temp_display = None
+                if args.adaptive:
+                    if args.env_temp is not None:
+                        env_temp_display = args.env_temp
+                    else:
+                        env_temp_display = estimate_environment_temperature_v1(
+                            temp_array, metadata.min_temp, metadata.max_temp
+                        )
+                
                 # Add info text
                 if is_recorded:
                     total_frames = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -294,6 +379,17 @@ Examples:
                         f"Frame: {metadata.seq}",
                         f"Objects: {len(objects)}, Clusters: {len(clusters)}",
                     ]
+                
+                # Add detection method info
+                if args.adaptive:
+                    method_text = "Adaptive Detection"
+                    if args.face_only:
+                        method_text += " [Face Only]"
+                    if env_temp_display is not None:
+                        method_text += f" (Room: {env_temp_display:.1f}C)"
+                    info_text.append(method_text)
+                else:
+                    info_text.append(f"Range: {args.temp_min:.0f}C - {args.temp_max:.0f}C")
                 
                 # Add detected object temperature range if objects found
                 if objects:
