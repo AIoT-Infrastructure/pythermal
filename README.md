@@ -23,8 +23,16 @@ It provides unified APIs for recording, visualization, and intelligent analysis 
   Detect objects based on temperature ranges with clustering support:
   
   * Temperature-based object detection (default: 31-39°C for human body)
+  * Adaptive human detection using environment temperature estimation
   * Object center detection and clustering
   * Temperature statistics per detected object (min / max / avg)
+
+* **Environment & Body Temperature Estimation**
+  Estimate ambient room temperature and body temperature:
+  
+  * Environment temperature estimation using percentile method (default: 5th percentile)
+  * Body temperature estimation from environment temperature using physiological model
+  * Adaptive detection thresholds based on room temperature
 
 * **YOLO v11 Detection** (Optional)
   Advanced object and pose detection using YOLO v11:
@@ -183,8 +191,11 @@ viewer.run()  # Replays recorded sequence
 **Controls:**
 - Press `q` to quit
 - Press `t` to toggle between YUYV view and temperature view
+- Press `+`/`-` to adjust contrast (CLAHE enhancement)
 - Move mouse over image to see temperature at cursor position
 - Press `SPACE` to pause/resume (for recorded sequences)
+
+The live view displays room temperature estimation in the overlay, calculated using the 5th percentile method with smoothing.
 
 ---
 
@@ -299,6 +310,45 @@ capture.release()
 ```
 
 See `examples/detect_objects.py` for a complete visualization example. All examples support both live camera feeds and recorded sequences using the `ThermalCapture` interface.
+
+#### Adaptive Human Detection
+
+Detect humans using adaptive temperature thresholds based on environment temperature:
+
+```python
+from pythermal import ThermalCapture, detect_humans_adaptive
+
+capture = ThermalCapture()  # Live camera, or pass file path for recorded data
+
+if capture.has_new_frame():
+    metadata = capture.get_metadata()
+    temp_array = capture.get_temperature_array()
+    
+    # Adaptive detection (auto-estimates room temperature)
+    objects = detect_humans_adaptive(
+        temp_array=temp_array,
+        min_temp=metadata.min_temp,
+        max_temp=metadata.max_temp
+    )
+    
+    # Or specify room temperature
+    objects = detect_humans_adaptive(
+        temp_array=temp_array,
+        min_temp=metadata.min_temp,
+        max_temp=metadata.max_temp,
+        environment_temp=22.0  # Known room temperature
+    )
+    
+    capture.mark_frame_read()
+
+capture.release()
+```
+
+The adaptive detection uses the formula `Ts = Te + α × (Tc − Te)` where:
+- `Ts` = Skin temperature (estimated body temperature)
+- `Te` = Environment temperature
+- `Tc` = Core body temperature (37°C)
+- `α` = Blood flow regulation coefficient (0.4-0.7 for face/torso)
 
 ---
 
@@ -416,8 +466,17 @@ After running, disconnect and reconnect your thermal camera, and log out/in for 
 | Function              | Purpose                                         |
 | --------------------- | ----------------------------------------------- |
 | `detect_object_centers` | Detect object centers from temperature map based on temperature range |
+| `detect_humans_adaptive` | Adaptive human detection using environment temperature estimation |
 | `detect_moving_objects` | Detect moving objects using background subtraction |
 | `cluster_objects`    | Cluster detected objects that are close to each other |
+
+### Utility Functions
+
+| Function              | Purpose                                         |
+| --------------------- | ----------------------------------------------- |
+| `estimate_environment_temperature_v1` | Estimate room temperature using 5th percentile method (with smoothing) |
+| `estimate_body_temperature` | Estimate body (skin) temperature from environment temperature |
+| `estimate_body_temperature_range` | Get temperature range for different body parts (hands/feet vs face/torso) |
 
 ### Shape Analysis Functions
 
