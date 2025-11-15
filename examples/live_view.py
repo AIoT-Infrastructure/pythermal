@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Optional
 
 from pythermal import ThermalLiveView, WIDTH, HEIGHT
+from pythermal.utils import estimate_environment_temperature_v1
 
 
 class EnhancedLiveView(ThermalLiveView):
@@ -48,6 +49,8 @@ class EnhancedLiveView(ThermalLiveView):
         self._last_frame_data = None
         self._last_metadata = None
         self._last_yuyv = None
+        # Store environment temperature
+        self._env_temp = None
         
     def apply_clahe_enhancement(self, image: np.ndarray, is_raw_temp: bool = False) -> np.ndarray:
         """
@@ -190,6 +193,12 @@ class EnhancedLiveView(ThermalLiveView):
         else:
             return
         
+        # Re-estimate environment temperature if we have temperature data
+        if self._last_frame_data is not None:
+            self._env_temp = estimate_environment_temperature_v1(
+                self._last_frame_data, min_temp, max_temp
+            )
+        
         # Draw overlay
         fps = self.calculate_fps()
         thermal_image = self.draw_overlay(
@@ -198,6 +207,47 @@ class EnhancedLiveView(ThermalLiveView):
         
         # Display image
         cv2.imshow(window_name, thermal_image)
+    
+    def draw_overlay(self, image: np.ndarray, min_temp: float, max_temp: float, avg_temp: float, 
+                     seq: int, fps: float) -> np.ndarray:
+        """
+        Draw temperature and statistics overlay below the frame with room temperature
+        
+        Args:
+            image: BGR image to draw on (240x240)
+            min_temp: Minimum temperature
+            max_temp: Maximum temperature
+            avg_temp: Average temperature
+            seq: Frame sequence number
+            fps: Current FPS
+            
+        Returns:
+            Extended image with text overlay below frame
+        """
+        # Call parent method to get base overlay
+        extended_image = super().draw_overlay(image, min_temp, max_temp, avg_temp, seq, fps)
+        
+        # Add room temperature display if available
+        if self._env_temp is not None:
+            text_area_height = 80
+            text_area_y_start = HEIGHT
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 0.4
+            thickness = 1
+            
+            # Calculate position for room temperature (right side of temperature readings)
+            y_offset = text_area_y_start + 15 + (15 * 3)  # After Min, Max, Avg
+            
+            # Draw room temperature on the right side
+            room_text = f"Room: {self._env_temp:.1f}C"
+            text_size = cv2.getTextSize(room_text, font, font_scale, thickness)[0]
+            text_x = WIDTH - text_size[0] - 5
+            
+            # Use a distinct color for room temperature (cyan/light blue)
+            cv2.putText(extended_image, room_text, (text_x, y_offset), 
+                       font, font_scale, (200, 255, 255), thickness)
+        
+        return extended_image
     
     def run(self):
         """Main loop for live view"""
@@ -304,6 +354,14 @@ class EnhancedLiveView(ThermalLiveView):
                     # Calculate FPS
                     self.frame_count += 1
                     fps = self.calculate_fps()
+                    
+                    # Estimate environment temperature if we have temperature data
+                    if temp_array is not None:
+                        self._env_temp = estimate_environment_temperature_v1(
+                            temp_array, min_temp, max_temp
+                        )
+                    else:
+                        self._env_temp = None
                     
                     # Draw overlay with mouse temperature
                     thermal_image = self.draw_overlay(
