@@ -10,6 +10,11 @@ from typing import Optional
 
 from ..detections.utils import convert_to_celsius
 
+# Global state for smoothing filter
+_env_temp_history = []
+_env_temp_smoothed = None
+_MAX_HISTORY_SIZE = 10
+
 
 def estimate_environment_temperature(
     temp_array: np.ndarray,
@@ -52,22 +57,75 @@ def estimate_environment_temperature(
 def estimate_environment_temperature_v1(
     temp_array: np.ndarray,
     min_temp: float,
-    max_temp: float
+    max_temp: float,
+    smoothing: bool = True,
+    smoothing_factor: float = 0.3
 ) -> Optional[float]:
     """
-    Estimate environment temperature using version 1 method.
+    Estimate environment temperature using version 1 method with optional smoothing filter.
     
-    Alias for estimate_environment_temperature with percentile=5.0
+    Uses the 5th percentile method and applies exponential moving average smoothing
+    to reduce noise and provide stable estimates.
     
     Args:
         temp_array: Temperature array (96x96, uint16 raw values or float32 Celsius)
         min_temp: Minimum temperature in Celsius from metadata
         max_temp: Maximum temperature in Celsius from metadata
+        smoothing: Whether to apply smoothing filter (default: True)
+        smoothing_factor: Smoothing factor for exponential moving average (default: 0.3)
+                         Lower values (0.1-0.3) = more smoothing, slower response
+                         Higher values (0.4-0.7) = less smoothing, faster response
     
     Returns:
-        Estimated environment temperature in Celsius (5th percentile), or None if input is invalid
+        Estimated environment temperature in Celsius (5th percentile, smoothed), or None if input is invalid
     """
-    return estimate_environment_temperature(temp_array, min_temp, max_temp, percentile=5.0)
+    global _env_temp_history, _env_temp_smoothed
+    
+    # Get raw estimate
+    raw_estimate = estimate_environment_temperature(temp_array, min_temp, max_temp, percentile=5.0)
+    
+    if raw_estimate is None:
+        return None
+    
+    # If smoothing is disabled, return raw estimate
+    if not smoothing:
+        return raw_estimate
+    
+    # Apply exponential moving average smoothing
+    if _env_temp_smoothed is None:
+        # First estimate - initialize with raw value
+        _env_temp_smoothed = raw_estimate
+    else:
+        # Apply exponential moving average: smoothed = α * new + (1-α) * old
+        _env_temp_smoothed = smoothing_factor * raw_estimate + (1 - smoothing_factor) * _env_temp_smoothed
+    
+    # Also maintain a history for additional smoothing options
+    _env_temp_history.append(raw_estimate)
+    if len(_env_temp_history) > _MAX_HISTORY_SIZE:
+        _env_temp_history.pop(0)
+    
+    return _env_temp_smoothed
+
+
+def reset_environment_temperature_smoothing():
+    """
+    Reset the smoothing filter state.
+    
+    Call this when starting a new session or when you want to clear the smoothing history.
+    """
+    global _env_temp_history, _env_temp_smoothed
+    _env_temp_history = []
+    _env_temp_smoothed = None
+
+
+def get_environment_temperature_history() -> list:
+    """
+    Get the history of raw environment temperature estimates.
+    
+    Returns:
+        List of recent raw temperature estimates
+    """
+    return _env_temp_history.copy()
 
 
 def estimate_body_temperature(
