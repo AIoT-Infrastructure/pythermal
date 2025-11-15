@@ -33,3 +33,22 @@ ROI Management
    :undoc-members:
    :show-inheritance:
 
+YOLO Detection
+-------------
+
+YOLO Object Detection
+~~~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: pythermal.detections.yolo.object_detection
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+YOLO Pose Detection
+~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: pythermal.detections.yolo.pose_detection
+   :members:
+   :undoc-members:
+   :show-inheritance:
+

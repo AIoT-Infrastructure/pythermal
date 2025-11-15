@@ -1,7 +1,7 @@
 PyThermal Documentation
 =========================
 
-**A lightweight Python library for thermal sensing and analytics on ARM Linux platforms.**
+**A lightweight Python library for thermal sensing and analytics.**
 
 PyThermal provides unified APIs for recording, visualization, and intelligent analysis of thermal data from Hikvision or compatible infrared sensors.
 
