@@ -1,7 +1,7 @@
 Device Module
 =============
 
-.. automodule:: pythermal.device
+.. automodule:: pythermal.core.device
    :members:
    :undoc-members:
    :show-inheritance:

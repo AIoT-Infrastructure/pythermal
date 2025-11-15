@@ -58,3 +58,21 @@ make clean
 make html
 ```
 
+## GitHub Pages Deployment
+
+The documentation is automatically built and deployed to GitHub Pages when:
+- Changes are pushed to `main` or `master` branch
+- Changes are made to files in `docs/` or `pythermal/` directories
+- The workflow is manually triggered via GitHub Actions
+
+To enable GitHub Pages:
+1. Go to your repository Settings → Pages
+2. Under "Source", select "GitHub Actions"
+3. The workflow will automatically deploy on the next push
+
+The documentation will be available at: **https://aiot-infrastructure.github.io/pythermal/**
+
+Repository: [https://github.com/AIoT-Infrastructure/pythermal/](https://github.com/AIoT-Infrastructure/pythermal/)
+
+The GitHub Actions workflow is configured in `.github/workflows/docs.yml`.
+
