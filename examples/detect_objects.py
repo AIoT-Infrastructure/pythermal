@@ -217,6 +217,18 @@ Examples:
         default=None,
         help="Environment temperature in Celsius (for adaptive detection). If not provided, will be estimated from frame."
     )
+    parser.add_argument(
+        "--min-temp-above-env",
+        type=float,
+        default=2.0,
+        help="Minimum temperature above environment for adaptive detection (default: 2.0°C)"
+    )
+    parser.add_argument(
+        "--max-temp-limit",
+        type=float,
+        default=42.0,
+        help="Maximum temperature limit to avoid detecting hot objects (default: 42.0°C)"
+    )
     
     args = parser.parse_args()
     
@@ -286,7 +298,9 @@ Examples:
                         min_temp=metadata.min_temp,
                         max_temp=metadata.max_temp,
                         environment_temp=args.env_temp,
-                        min_area=args.min_area
+                        min_area=args.min_area,
+                        min_temp_above_env=args.min_temp_above_env,
+                        max_temp_limit=args.max_temp_limit
                     )
                 else:
                     # Use standard temperature-based detection
