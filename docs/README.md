@@ -4,6 +4,8 @@ This directory contains the Sphinx documentation for PyThermal.
 
 ## Building the Documentation
 
+### Quick Build
+
 To build the HTML documentation:
 
 ```bash
@@ -11,7 +13,28 @@ cd docs
 make html
 ```
 
+Or use the auto-build script:
+
+```bash
+python docs/auto_build_docs.py
+```
+
+### Watch Mode (Auto-rebuild on changes)
+
+For development, use watch mode to automatically rebuild when files change:
+
+```bash
+pip install watchdog  # One-time install
+python docs/auto_build_docs.py --watch
+```
+
+This will monitor:
+- `pythermal/` - Source code changes (auto-updates API docs)
+- `docs/source/` - Documentation changes (rebuilds docs)
+
 The generated HTML files will be in `docs/build/html/`.
+
+See `AUTO_BUILD.md` for more details on automatic documentation generation.
 
 ## Viewing the Documentation
 
