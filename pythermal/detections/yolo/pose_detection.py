@@ -12,12 +12,10 @@ from typing import Optional, List, Tuple, Dict, Any
 import numpy as np
 import cv2
 
-try:
-    from ultralytics import YOLO
-    ULTRALYTICS_AVAILABLE = True
-except ImportError:
-    ULTRALYTICS_AVAILABLE = False
-    YOLO = None
+# Lazy import: ultralytics is only imported when YOLOPoseDetector is instantiated
+# This prevents network checks during module import
+ULTRALYTICS_AVAILABLE = None
+YOLO = None
 
 
 class YOLOPoseDetector:
@@ -89,6 +87,17 @@ class YOLOPoseDetector:
             ImportError: If ultralytics package is not installed
             FileNotFoundError: If custom model file is not found
         """
+        # Lazy import ultralytics only when actually instantiating the detector
+        # This prevents network checks during module import
+        global ULTRALYTICS_AVAILABLE, YOLO
+        if ULTRALYTICS_AVAILABLE is None:
+            try:
+                from ultralytics import YOLO
+                ULTRALYTICS_AVAILABLE = True
+            except ImportError:
+                ULTRALYTICS_AVAILABLE = False
+                YOLO = None
+        
         if not ULTRALYTICS_AVAILABLE:
             raise ImportError(
                 "ultralytics package is required for YOLO pose detection. "
