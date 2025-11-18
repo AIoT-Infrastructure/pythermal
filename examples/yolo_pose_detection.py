@@ -89,29 +89,41 @@ def filter_poses_by_temperature(
     
     filtered_poses = []
     for pose in pose_detections:
-        # Get bounding box from pose detection
-        # YOLO returns bbox as list [x1, y1, x2, y2]
-        bbox = pose.get('bbox', [])
-        if not bbox or len(bbox) < 4:
-            # Try using center if bbox is not available
+        # Get face keypoint (nose) from pose detection
+        # Prefer nose as it's the most central face keypoint
+        keypoints_dict = pose.get('keypoints_dict', {})
+        face_x, face_y = None, None
+        
+        # Try to get nose keypoint first
+        if 'nose' in keypoints_dict:
+            nose_data = keypoints_dict['nose']
+            if len(nose_data) >= 2 and nose_data[2] > 0:  # Check confidence > 0
+                face_x, face_y = nose_data[0], nose_data[1]
+        
+        # Fallback to other face keypoints if nose not available
+        if face_x is None or face_y is None:
+            for face_keypoint in ['left_eye', 'right_eye', 'left_ear', 'right_ear']:
+                if face_keypoint in keypoints_dict:
+                    kp_data = keypoints_dict[face_keypoint]
+                    if len(kp_data) >= 2 and kp_data[2] > 0:  # Check confidence > 0
+                        face_x, face_y = kp_data[0], kp_data[1]
+                        break
+        
+        # If no face keypoint available, fall back to center
+        if face_x is None or face_y is None:
             center = pose.get('center', None)
             if center is None:
                 continue
-            x_center, y_center = center
-        else:
-            # Calculate center of pose bounding box from [x1, y1, x2, y2]
-            x1, y1, x2, y2 = bbox[0], bbox[1], bbox[2], bbox[3]
-            x_center = (x1 + x2) / 2.0
-            y_center = (y1 + y2) / 2.0
+            face_x, face_y = center
         
-        # Convert to temperature array coordinates
-        temp_x = int(x_center / temp_to_bgr_scale_x)
-        temp_y = int(y_center / temp_to_bgr_scale_y)
+        # Convert face keypoint to temperature array coordinates
+        temp_x = int(face_x / temp_to_bgr_scale_x)
+        temp_y = int(face_y / temp_to_bgr_scale_y)
         
-        # Check if center is within any temperature-detected human region
+        # Check if face keypoint is within any temperature-detected human region
         is_human = False
         for temp_obj in temp_objects:
-            # Check if pose center is within temperature object bounds
+            # Check if face keypoint is within temperature object bounds
             obj_x_min = temp_obj.center_x - temp_obj.width / 2
             obj_x_max = temp_obj.center_x + temp_obj.width / 2
             obj_y_min = temp_obj.center_y - temp_obj.height / 2
