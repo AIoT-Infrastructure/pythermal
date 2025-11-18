@@ -29,8 +29,19 @@ except ImportError:
 readme_file = Path(__file__).parent / "README.md"
 long_description = readme_file.read_text() if readme_file.exists() else ""
 
-# Get version from package
-version = "0.2.4"
+# Get version from package __init__.py
+init_file = Path(__file__).parent / "pythermal" / "__init__.py"
+if not init_file.exists():
+    raise FileNotFoundError(f"Could not find {init_file}")
+
+version = None
+for line in init_file.read_text().splitlines():
+    if line.startswith("__version__"):
+        version = line.split("=")[1].strip().strip('"').strip("'")
+        break
+
+if version is None:
+    raise ValueError(f"Could not find __version__ in {init_file}")
 
 # Find all native binaries to include (both architectures)
 native_base = Path(__file__).parent / "pythermal" / "_native"
