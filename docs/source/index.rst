@@ -32,29 +32,30 @@ Quick Start
 
 .. code-block:: python
 
-   from pythermal import ThermalDevice, detect_object_centers
+   from pythermal import ThermalCapture, detect_humans_adaptive
 
-   # Initialize thermal device
-   device = ThermalDevice()
-   device.start()
-   shm = device.get_shared_memory()
+   # Initialize thermal capture (works for both live and recorded data)
+   capture = ThermalCapture()  # Use None or 0 for live camera, or file path for recorded
 
-   # Detect objects
-   if shm.has_new_frame():
-       metadata = shm.get_metadata()
-       temp_array = shm.get_temperature_array()
+   # Detect objects using adaptive human detection
+   if capture.has_new_frame():
+       metadata = capture.get_metadata()
+       temp_array = capture.get_temperature_array()
        
-       objects = detect_object_centers(
+       objects = detect_humans_adaptive(
            temp_array=temp_array,
            min_temp=metadata.min_temp,
            max_temp=metadata.max_temp,
-           temp_min=31.0,
-           temp_max=39.0
+           environment_temp=None,  # Auto-estimate from frame, or provide value (e.g., 22.0)
+           min_area=50,
+           min_temp_above_env=2.0,
+           max_temp_limit=42.0
        )
        
        print(f"Detected {len(objects)} objects")
+       capture.mark_frame_read()
 
-   device.stop()
+   capture.release()
 
 Indices and tables
 ==================
