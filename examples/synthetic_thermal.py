@@ -69,7 +69,14 @@ def main():
         type=str,
         default="nano",
         choices=["nano", "small", "medium", "large", "xlarge"],
-        help="YOLO model size (default: nano)"
+        help="YOLO object detection model size (default: nano)"
+    )
+    parser.add_argument(
+        "--seg-model-size",
+        type=str,
+        default="nano",
+        choices=["nano", "small", "medium", "large", "xlarge"],
+        help="YOLO segmentation model size (default: nano)"
     )
     
     args = parser.parse_args()
@@ -93,6 +100,7 @@ def main():
     print(f"Ambient temp: {args.ambient_temp}°C")
     print(f"View mode: {args.view_mode}")
     print(f"Model size: {args.model_size}")
+    print(f"Segmentation model size: {args.seg_model_size}")
     print()
     
     # Initialize generator
@@ -102,6 +110,7 @@ def main():
         clothing_temp=args.clothing_temp,
         ambient_temp=args.ambient_temp,
         model_size=args.model_size,
+        seg_model_size=args.seg_model_size,
         pose_model_size=args.model_size,
     )
     
