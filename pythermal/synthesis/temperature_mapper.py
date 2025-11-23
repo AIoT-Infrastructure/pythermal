@@ -11,6 +11,7 @@ import cv2
 from typing import List, Dict, Any, Tuple, Optional
 from ..detections.yolo.pose_detection import YOLOPoseDetector
 from ..detections.yolo.segmentation import YOLOSegmentationDetector
+from ..utils.environment import estimate_body_temperature
 
 
 class TemperatureMapper:
@@ -24,23 +25,22 @@ class TemperatureMapper:
     """
     
     # Temperature ranges (Celsius)
-    DEFAULT_BODY_TEMP = 37.0  # Core body temperature
-    DEFAULT_SKIN_TEMP = 33.0  # Skin temperature
+    DEFAULT_CORE_TEMP = 37.0  # Core body temperature
     DEFAULT_CLOTHING_TEMP = 28.0  # Clothing temperature
     DEFAULT_AMBIENT_TEMP = 22.0  # Room temperature
     
-    # Body part temperature offsets (relative to core temp)
-    TEMP_OFFSETS = {
-        "head": 0.5,  # Head is slightly warmer
-        "torso": 0.0,  # Torso is core temperature
-        "limbs": -1.0,  # Limbs are slightly cooler
-        "hands_feet": -2.0,  # Extremities are cooler
+    # Alpha values for different body parts (blood flow regulation coefficient)
+    # Used with estimate_body_temperature function
+    ALPHA_VALUES = {
+        "head": 0.65,  # Face/head: α ≈ 0.5–0.7 (use 0.65 for slightly warmer)
+        "torso": 0.6,  # Torso: α ≈ 0.5–0.7 (default: 0.6)
+        "limbs": 0.4,  # Limbs: α ≈ 0.3–0.5 (use 0.4)
+        "hands_feet": 0.25,  # Extremities: α ≈ 0.2–0.4 (use 0.25)
     }
     
     def __init__(
         self,
-        body_temp: float = DEFAULT_BODY_TEMP,
-        skin_temp: float = DEFAULT_SKIN_TEMP,
+        core_temp: float = DEFAULT_CORE_TEMP,
         clothing_temp: float = DEFAULT_CLOTHING_TEMP,
         ambient_temp: float = DEFAULT_AMBIENT_TEMP,
         seg_model_size: str = "nano",
@@ -52,19 +52,34 @@ class TemperatureMapper:
         Initialize temperature mapper.
         
         Args:
-            body_temp: Core body temperature in Celsius
-            skin_temp: Exposed skin temperature in Celsius
-            clothing_temp: Clothing temperature in Celsius
-            ambient_temp: Ambient/background temperature in Celsius
+            core_temp: Core body temperature in Celsius (default: 37.0)
+            clothing_temp: Clothing temperature in Celsius (default: 28.0)
+            ambient_temp: Ambient/background temperature in Celsius (default: 22.0)
+                        Body temperatures will be estimated from this using estimate_body_temperature()
             seg_model_size: YOLO segmentation model size (default: "nano")
             pose_model_size: YOLO pose model size (for body part identification)
             conf_threshold: Confidence threshold for detections
             device: Device to run inference on
         """
-        self.body_temp = body_temp
-        self.skin_temp = skin_temp
+        self.core_temp = core_temp
         self.clothing_temp = clothing_temp
         self.ambient_temp = ambient_temp
+        
+        # Estimate body temperatures from ambient temperature using physiological model
+        self.body_temp_head = estimate_body_temperature(
+            ambient_temp, alpha=self.ALPHA_VALUES["head"], core_temp=core_temp
+        )
+        self.body_temp_torso = estimate_body_temperature(
+            ambient_temp, alpha=self.ALPHA_VALUES["torso"], core_temp=core_temp
+        )
+        self.body_temp_limbs = estimate_body_temperature(
+            ambient_temp, alpha=self.ALPHA_VALUES["limbs"], core_temp=core_temp
+        )
+        self.body_temp_extremities = estimate_body_temperature(
+            ambient_temp, alpha=self.ALPHA_VALUES["hands_feet"], core_temp=core_temp
+        )
+        # Skin temperature (exposed skin, typically face/hands) uses head alpha
+        self.skin_temp = self.body_temp_head
         
         # Use segmentation model for precise masks
         self.seg_detector = YOLOSegmentationDetector(
@@ -223,7 +238,8 @@ class TemperatureMapper:
                 # Estimate head region from segmentation mask in upper portion
                 head_radius = self._estimate_head_radius_from_mask(seg_mask, head_center, h)
                 head_mask = self._create_circle_mask(h, w, head_center, head_radius) & mask_bool
-                temp_map[head_mask] = self.body_temp + self.TEMP_OFFSETS["head"]
+                # Use estimated head temperature (warmer, alpha=0.65)
+                temp_map[head_mask] = self.body_temp_head
             
             # Torso region - connect shoulders to hips and fill within mask
             shoulder_kps = ["left_shoulder", "right_shoulder"]
@@ -235,7 +251,8 @@ class TemperatureMapper:
                 torso_mask = self._create_torso_mask_from_keypoints(
                     h, w, shoulders, hips, mask_bool
                 )
-                temp_map[torso_mask] = self.body_temp + self.TEMP_OFFSETS["torso"]
+                # Use estimated torso temperature (alpha=0.6)
+                temp_map[torso_mask] = self.body_temp_torso
             
             # Limbs - create connected regions between joints
             # Left arm: shoulder -> elbow -> wrist
@@ -246,7 +263,8 @@ class TemperatureMapper:
                 left_arm_mask = self._create_limb_mask(
                     h, w, [left_shoulder, left_elbow, left_wrist], mask_bool, radius=12
                 )
-                temp_map[left_arm_mask] = self.body_temp + self.TEMP_OFFSETS["limbs"]
+                # Use estimated limb temperature (alpha=0.4)
+                temp_map[left_arm_mask] = self.body_temp_limbs
             
             # Right arm: shoulder -> elbow -> wrist
             right_shoulder = get_kp("right_shoulder")
@@ -256,7 +274,8 @@ class TemperatureMapper:
                 right_arm_mask = self._create_limb_mask(
                     h, w, [right_shoulder, right_elbow, right_wrist], mask_bool, radius=12
                 )
-                temp_map[right_arm_mask] = self.body_temp + self.TEMP_OFFSETS["limbs"]
+                # Use estimated limb temperature (alpha=0.4)
+                temp_map[right_arm_mask] = self.body_temp_limbs
             
             # Left leg: hip -> knee -> ankle
             left_hip = get_kp("left_hip")
@@ -266,7 +285,8 @@ class TemperatureMapper:
                 left_leg_mask = self._create_limb_mask(
                     h, w, [left_hip, left_knee, left_ankle], mask_bool, radius=12
                 )
-                temp_map[left_leg_mask] = self.body_temp + self.TEMP_OFFSETS["limbs"]
+                # Use estimated limb temperature (alpha=0.4)
+                temp_map[left_leg_mask] = self.body_temp_limbs
             
             # Right leg: hip -> knee -> ankle
             right_hip = get_kp("right_hip")
@@ -276,7 +296,8 @@ class TemperatureMapper:
                 right_leg_mask = self._create_limb_mask(
                     h, w, [right_hip, right_knee, right_ankle], mask_bool, radius=12
                 )
-                temp_map[right_leg_mask] = self.body_temp + self.TEMP_OFFSETS["limbs"]
+                # Use estimated limb temperature (alpha=0.4)
+                temp_map[right_leg_mask] = self.body_temp_limbs
             
             # Extremities - small circles for hands and feet
             extremity_kps = ["left_wrist", "right_wrist", "left_ankle", "right_ankle"]
@@ -286,7 +307,20 @@ class TemperatureMapper:
                 if ext_point:
                     # Small radius for extremities
                     ext_mask = self._create_circle_mask(h, w, ext_point, 8) & mask_bool
-                    temp_map[ext_mask] = self.body_temp + self.TEMP_OFFSETS["hands_feet"]
+                    # Use estimated extremity temperature (alpha=0.25, cooler)
+                    temp_map[ext_mask] = self.body_temp_extremities
+        
+        # Differentiate skin from clothing using RGB color analysis
+        skin_mask = self._detect_skin_regions(image, mask_bool)
+        
+        # Assign skin temperature to detected skin regions
+        # Override body part temperatures with skin_temp where skin is detected
+        # This ensures exposed skin (face, hands, arms) gets proper skin temperature
+        skin_regions = skin_mask & mask_bool
+        temp_map[skin_regions] = self.skin_temp
+        
+        # For body parts that are not detected as skin, they're likely covered by clothing
+        # Keep their assigned temperatures (estimated from ambient_temp) but ensure they're warmer than pure clothing
         
         # Fill any remaining mask regions that don't have body part temperatures
         # Use distance-based assignment: closer to body parts = warmer
@@ -295,8 +329,9 @@ class TemperatureMapper:
             # Assign intermediate temperature based on proximity to body parts
             temp_map = self._fill_gaps_with_proximity(temp_map, mask_bool, unassigned_mask)
         
-        # Apply very light Gaussian smoothing to blend temperatures (preserve texture)
-        temp_map = cv2.GaussianBlur(temp_map, (3, 3), 0.5)
+        # Minimal blurring for high-quality thermal camera (very light smoothing only)
+        # Use smaller kernel and lower sigma to preserve texture
+        temp_map = cv2.GaussianBlur(temp_map, (3, 3), 0.3)
         
         # Ensure non-mask regions are ambient
         temp_map[~mask_bool] = self.ambient_temp
@@ -455,14 +490,79 @@ class TemperatureMapper:
             proximity = 1.0 - (dist_transform / max_dist)
             proximity = np.clip(proximity, 0, 1)
             
-            # Assign temperatures based on proximity (between clothing and body temp)
-            temp_range = (self.body_temp + self.TEMP_OFFSETS["torso"]) - self.clothing_temp
+            # Assign temperatures based on proximity (between clothing and torso temp)
+            temp_range = self.body_temp_torso - self.clothing_temp
             assigned_temp = self.clothing_temp + proximity * temp_range * 0.5  # Max 50% of range
             
             # Only update unassigned regions
             temp_map[unassigned_mask] = assigned_temp[unassigned_mask]
         
         return temp_map
+    
+    def _detect_skin_regions(self, rgb_image: np.ndarray, body_mask: np.ndarray) -> np.ndarray:
+        """
+        Detect skin regions in RGB image using color analysis.
+        
+        Uses HSV color space to identify skin-tone colors (flesh tones).
+        
+        Args:
+            rgb_image: RGB image (H, W, 3)
+            body_mask: Binary mask indicating person regions
+        
+        Returns:
+            Binary mask (H, W) where True indicates skin pixels
+        """
+        h, w = rgb_image.shape[:2]
+        skin_mask = np.zeros((h, w), dtype=bool)
+        
+        if not body_mask.any():
+            return skin_mask
+        
+        # Convert RGB to HSV for better skin color detection
+        hsv_image = cv2.cvtColor(rgb_image, cv2.COLOR_RGB2HSV)
+        
+        # Define skin color ranges in HSV
+        # These ranges cover various skin tones (light to dark)
+        # Hue: 0-20 (red/orange tones) and 160-180 (pink tones)
+        # Saturation: 20-255 (some color, not grayscale)
+        # Value: 50-255 (not too dark)
+        
+        # Lower bound for skin (reddish tones)
+        lower_skin1 = np.array([0, 20, 50], dtype=np.uint8)
+        upper_skin1 = np.array([20, 255, 255], dtype=np.uint8)
+        mask1 = cv2.inRange(hsv_image, lower_skin1, upper_skin1)
+        
+        # Upper bound for skin (pinkish tones)
+        lower_skin2 = np.array([160, 20, 50], dtype=np.uint8)
+        upper_skin2 = np.array([180, 255, 255], dtype=np.uint8)
+        mask2 = cv2.inRange(hsv_image, lower_skin2, upper_skin2)
+        
+        # Combine masks
+        skin_color_mask = mask1 | mask2
+        
+        # Additional check: skin typically has higher red component
+        # and moderate green/blue components
+        r_channel = rgb_image[:, :, 0].astype(np.float32)
+        g_channel = rgb_image[:, :, 1].astype(np.float32)
+        b_channel = rgb_image[:, :, 2].astype(np.float32)
+        
+        # Skin has: R > G > B (generally) and R > 95
+        red_dominant = (r_channel > g_channel) & (g_channel > b_channel)
+        red_sufficient = r_channel > 95
+        
+        # Combine color-based detection with RGB analysis
+        skin_mask = (skin_color_mask > 0) & red_dominant & red_sufficient
+        
+        # Constrain to body mask
+        skin_mask = skin_mask & body_mask
+        
+        # Apply morphological operations to clean up
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+        skin_mask = cv2.morphologyEx(skin_mask.astype(np.uint8), cv2.MORPH_CLOSE, kernel, iterations=1)
+        skin_mask = cv2.morphologyEx(skin_mask, cv2.MORPH_OPEN, kernel, iterations=1)
+        skin_mask = skin_mask.astype(bool)
+        
+        return skin_mask
     
     def _fill_circle(self, arr: np.ndarray, center: Tuple[float, float], radius: float, value: float):
         """Fill circle region in array."""

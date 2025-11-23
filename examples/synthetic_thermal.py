@@ -40,10 +40,10 @@ def main():
         help="Output .tframe file path (default: input_name.tframe)"
     )
     parser.add_argument(
-        "--body-temp",
+        "--core-temp",
         type=float,
         default=37.0,
-        help="Core body temperature in Celsius (default: 37.0)"
+        help="Core body temperature in Celsius (default: 37.0). Body part temperatures are estimated from ambient_temp."
     )
     parser.add_argument(
         "--clothing-temp",
@@ -95,7 +95,7 @@ def main():
     
     print(f"Input image: {input_path}")
     print(f"Output file: {output_path}")
-    print(f"Body temp: {args.body_temp}°C")
+    print(f"Core temp: {args.core_temp}°C")
     print(f"Clothing temp: {args.clothing_temp}°C")
     print(f"Ambient temp: {args.ambient_temp}°C")
     print(f"View mode: {args.view_mode}")
@@ -105,8 +105,9 @@ def main():
     
     # Initialize generator
     print("Initializing synthetic thermal generator...")
+    print("  (Body temperatures will be estimated from ambient temp using physiological model)")
     generator = SyntheticThermalGenerator(
-        body_temp=args.body_temp,
+        core_temp=args.core_temp,
         clothing_temp=args.clothing_temp,
         ambient_temp=args.ambient_temp,
         model_size=args.model_size,

@@ -32,8 +32,7 @@ class SyntheticThermalGenerator:
     
     def __init__(
         self,
-        body_temp: float = 37.0,
-        skin_temp: float = 33.0,
+        core_temp: float = 37.0,
         clothing_temp: float = 28.0,
         ambient_temp: float = 22.0,
         model_size: str = "nano",
@@ -46,10 +45,12 @@ class SyntheticThermalGenerator:
         Initialize synthetic thermal generator.
         
         Args:
-            body_temp: Core body temperature in Celsius (default: 37.0)
-            skin_temp: Exposed skin temperature in Celsius (default: 33.0)
+            core_temp: Core body temperature in Celsius (default: 37.0)
+                      Body part temperatures are estimated from ambient_temp using
+                      estimate_body_temperature() with different alpha values.
             clothing_temp: Clothing temperature in Celsius (default: 28.0)
             ambient_temp: Ambient/background temperature in Celsius (default: 22.0)
+                         Body temperatures are estimated from this using physiological model
             model_size: YOLO object detection model size (default: "nano")
             seg_model_size: YOLO segmentation model size (default: "nano")
             pose_model_size: YOLO pose detection model size (default: "nano")
@@ -63,8 +64,7 @@ class SyntheticThermalGenerator:
             device=device,
         )
         self.temperature_mapper = TemperatureMapper(
-            body_temp=body_temp,
-            skin_temp=skin_temp,
+            core_temp=core_temp,
             clothing_temp=clothing_temp,
             ambient_temp=ambient_temp,
             seg_model_size=seg_model_size,
@@ -72,9 +72,12 @@ class SyntheticThermalGenerator:
             conf_threshold=conf_threshold,
             device=device,
         )
+        # Estimate max body temp for frame generator (use head temp as max)
+        from ..utils.environment import estimate_body_temperature
+        max_body_temp = estimate_body_temperature(ambient_temp, alpha=0.65, core_temp=core_temp)
         self.frame_generator = ThermalFrameGenerator(
             temp_min=min(ambient_temp - 5, 15.0),
-            temp_max=max(body_temp + 5, 45.0),
+            temp_max=max(max_body_temp + 5, 45.0),
         )
     
     def generate_from_image(

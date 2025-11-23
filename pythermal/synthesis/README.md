@@ -8,7 +8,8 @@ This module provides functionality to generate synthetic thermal frames (`.tfram
 - **Human Segmentation**: Uses YOLO object detection to identify persons
 - **Pose Estimation**: YOLO pose detection to identify body parts
 - **Temperature Mapping**: Assigns different temperatures to:
-  - Body parts (head, torso, limbs) - warmer regions
+  - Body parts (head, torso, limbs) - temperatures estimated from ambient temp using physiological model
+  - Exposed skin - detected using RGB color analysis, warmer than clothing
   - Clothing - cooler regions
   - Background - ambient temperature
 - **Frame Generation**: Creates `.tframe` files compatible with PyThermal
@@ -32,9 +33,15 @@ from pythermal.synthesis import SyntheticThermalGenerator
 
 # Initialize generator
 generator = SyntheticThermalGenerator(
-    body_temp=37.0,      # Core body temperature (°C)
+    core_temp=37.0,      # Core body temperature (°C)
     clothing_temp=28.0,  # Clothing temperature (°C)
     ambient_temp=22.0,   # Ambient/background temperature (°C)
+    # Body part temperatures are automatically estimated from ambient_temp
+    # using estimate_body_temperature() with different alpha values:
+    # - Head: alpha=0.65 (warmer)
+    # - Torso: alpha=0.6
+    # - Limbs: alpha=0.4
+    # - Extremities: alpha=0.25 (cooler)
 )
 
 # Generate thermal frame from RGB image
@@ -68,10 +75,16 @@ thermal_frame, rendered_image = generator.generate_from_array(
 
 ### Temperature Parameters
 
-- `body_temp`: Core body temperature (default: 37.0°C)
-- `skin_temp`: Exposed skin temperature (default: 33.0°C)
+- `core_temp`: Core body temperature (default: 37.0°C)
 - `clothing_temp`: Clothing temperature (default: 28.0°C)
 - `ambient_temp`: Background/ambient temperature (default: 22.0°C)
+  - Body part temperatures are automatically estimated from `ambient_temp` using `estimate_body_temperature()`
+  - Uses physiological model: Ts = Te + α × (Tc − Te)
+  - Different alpha values for different body parts:
+    - Head/face: α=0.65 (warmer, exposed skin)
+    - Torso: α=0.6
+    - Limbs: α=0.4
+    - Hands/feet: α=0.25 (cooler, extremities)
 
 ### Model Configuration
 
