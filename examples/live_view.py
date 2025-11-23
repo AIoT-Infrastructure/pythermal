@@ -22,6 +22,7 @@ from datetime import datetime
 from typing import Optional
 
 from pythermal import ThermalLiveView, WIDTH, HEIGHT
+from pythermal.core import ThermalFrameProcessor, ThermalFrame
 from pythermal.utils import estimate_environment_temperature_v1
 
 
@@ -33,9 +34,27 @@ class EnhancedLiveView(ThermalLiveView):
         Initialize enhanced live view
         
         Args:
-            source: File path for recorded .tseq file, or 0/None/empty for live camera (default: live camera)
+            source: File path for recorded .tseq or .tframe file, or 0/None/empty for live camera (default: live camera)
         """
-        super().__init__(source)
+        # Check if source is a .tframe file
+        self._is_tframe = False
+        self._tframe_data = None
+        
+        if source and isinstance(source, str):
+            source_path = Path(source)
+            if source_path.exists() and source_path.suffix.lower() == '.tframe':
+                self._is_tframe = True
+                # Load .tframe file
+                self._tframe_data = ThermalFrameProcessor.read_tframe(str(source_path))
+                if self._tframe_data is None:
+                    raise ValueError(f"Failed to load .tframe file: {source}")
+                # Don't initialize parent with source for .tframe files
+                super().__init__(None)
+            else:
+                super().__init__(source)
+        else:
+            super().__init__(source)
+        
         # Extended view modes
         self.view_modes = ['yuyv', 'temperature', 'temperature_celsius']
         self.view_mode_index = 0
@@ -51,6 +70,18 @@ class EnhancedLiveView(ThermalLiveView):
         self._last_yuyv = None
         # Store environment temperature
         self._env_temp = None
+        
+        # If .tframe file, load frame data
+        if self._is_tframe and self._tframe_data:
+            frame = self._tframe_data['frame']
+            self._last_yuyv = frame.yuyv.copy()
+            self._last_frame_data = frame.temp_array.copy()
+            self._last_metadata = frame.metadata
+            self.view_mode = self._tframe_data['view_mode']
+            # Find view mode index
+            if self.view_mode in self.view_modes:
+                self.view_mode_index = self.view_modes.index(self.view_mode)
+            self.current_temp_data = frame.temp_array.copy()
         
     def apply_clahe_enhancement(self, image: np.ndarray, is_raw_temp: bool = False) -> np.ndarray:
         """
@@ -249,8 +280,206 @@ class EnhancedLiveView(ThermalLiveView):
         
         return extended_image
     
+    def screenshot(self, output_path: Optional[str] = None) -> bool:
+        """
+        Save current frame as .tframe file (includes rendered image + raw data for replay)
+        
+        Args:
+            output_path: Optional path for .tframe file. If None, generates timestamped filename.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self._last_metadata:
+            print("No frame data available for screenshot")
+            return False
+        
+        metadata = self._last_metadata
+        seq_val = metadata.seq
+        min_temp = metadata.min_temp
+        max_temp = metadata.max_temp
+        avg_temp = metadata.avg_temp
+        
+        # Render current frame with overlay
+        if self.view_mode == 'yuyv' and self._last_yuyv is not None:
+            thermal_image = self.get_original_yuyv(self._last_yuyv)
+        elif self.view_mode == 'temperature' and self._last_frame_data is not None:
+            thermal_image = self.get_temperature_view(self._last_frame_data, min_temp, max_temp)
+        elif self.view_mode == 'temperature_celsius' and self._last_frame_data is not None:
+            thermal_image = self.get_temperature_celsius_view(self._last_frame_data, min_temp, max_temp)
+        else:
+            print("No frame data available for screenshot")
+            return False
+        
+        # Re-estimate environment temperature if we have temperature data
+        if self._last_frame_data is not None:
+            self._env_temp = estimate_environment_temperature_v1(
+                self._last_frame_data, min_temp, max_temp
+            )
+        
+        # Draw overlay
+        fps = self.calculate_fps()
+        thermal_image = self.draw_overlay(
+            thermal_image, min_temp, max_temp, avg_temp, seq_val, fps
+        )
+        
+        # Generate output path if not provided
+        if output_path is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            output_path = f"screenshot_{timestamp}.tframe"
+        
+        output_path = Path(output_path)
+        
+        # Ensure .tframe extension
+        if output_path.suffix.lower() != '.tframe':
+            output_path = output_path.with_suffix('.tframe')
+        
+        # Create ThermalFrame from current data
+        try:
+            import time
+            frame = ThermalFrameProcessor.create_frame_from_capture(self.capture, timestamp=time.time())
+            
+            if frame is None:
+                # Fallback: create frame from stored data
+                if self._last_yuyv is not None and self._last_frame_data is not None:
+                    rgb = cv2.cvtColor(self._last_yuyv, cv2.COLOR_YUV2RGB_YUYV)
+                    frame = ThermalFrame(
+                        timestamp=time.time(),
+                        metadata=metadata,
+                        yuyv=self._last_yuyv.copy(),
+                        temp_array=self._last_frame_data.copy(),
+                        rgb=rgb
+                    )
+            
+            if frame is not None:
+                success = ThermalFrameProcessor.write_tframe(
+                    str(output_path), thermal_image, frame, view_mode=self.view_mode
+                )
+                if success:
+                    print(f"Screenshot saved as .tframe: {output_path}")
+                    return True
+                else:
+                    print(f"Failed to save .tframe file: {output_path}")
+                    return False
+            else:
+                print("Could not create frame data for saving")
+                return False
+        
+        except Exception as e:
+            print(f"Error saving screenshot: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+    
+    def _run_tframe(self):
+        """Interactive display for .tframe files"""
+        if not self._tframe_data:
+            print("No .tframe data loaded")
+            return
+        
+        window_name = "PyThermal Frame Viewer (.tframe)"
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        
+        # Get initial rendered image and frame data
+        frame = self._tframe_data['frame']
+        metadata = frame.metadata
+        original_view_mode = self._tframe_data['view_mode']
+        needs_rerender = False
+        
+        # Resize window to fit image
+        img_height, img_width = self._tframe_data['rendered_image'].shape[:2]
+        cv2.resizeWindow(window_name, img_width, img_height)
+        
+        # Set mouse callback
+        cv2.setMouseCallback(window_name, self.mouse_callback)
+        
+        print("\n.tframe File Viewer Controls:")
+        print("  'q' - Quit")
+        print("  't' - Toggle view mode (YUYV / Temperature / Temperature Celsius)")
+        print("  '+' - Increase contrast")
+        print("  '-' - Decrease contrast")
+        print("  's' - Save screenshot")
+        print("  Mouse - Hover over image to see temperature")
+        print()
+        
+        try:
+            while True:
+                # Re-render based on current view mode if changed
+                if needs_rerender or self.view_mode != original_view_mode:
+                    # Re-render with current view mode
+                    min_temp = metadata.min_temp
+                    max_temp = metadata.max_temp
+                    avg_temp = metadata.avg_temp
+                    
+                    if self.view_mode == 'yuyv':
+                        thermal_image = self.get_original_yuyv(self._last_yuyv)
+                    elif self.view_mode == 'temperature':
+                        thermal_image = self.get_temperature_view(self._last_frame_data, min_temp, max_temp)
+                    elif self.view_mode == 'temperature_celsius':
+                        thermal_image = self.get_temperature_celsius_view(self._last_frame_data, min_temp, max_temp)
+                    else:
+                        thermal_image = self._tframe_data['rendered_image'].copy()
+                    
+                    # Re-estimate environment temperature
+                    if self._last_frame_data is not None:
+                        self._env_temp = estimate_environment_temperature_v1(
+                            self._last_frame_data, min_temp, max_temp
+                        )
+                    
+                    # Draw overlay
+                    fps = 0.0  # No FPS for single frame
+                    thermal_image = self.draw_overlay(
+                        thermal_image, min_temp, max_temp, avg_temp, metadata.seq, fps
+                    )
+                    rendered_image = thermal_image
+                    needs_rerender = False
+                else:
+                    # Use original rendered image
+                    rendered_image = self._tframe_data['rendered_image'].copy()
+                
+                # Display image
+                cv2.imshow(window_name, rendered_image)
+                
+                # Handle keyboard input
+                key = cv2.waitKey(30) & 0xFF
+                if key == ord('q'):
+                    break
+                elif key == ord('t'):
+                    self.toggle_view_mode()
+                    needs_rerender = True
+                elif key == ord('+') or key == ord('='):
+                    self.adjust_contrast(1.0)
+                    needs_rerender = True
+                elif key == ord('-') or key == ord('_'):
+                    self.adjust_contrast(-1.0)
+                    needs_rerender = True
+                elif key == ord('s'):
+                    # Save screenshot
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    output_path = f"screenshot_{timestamp}.tframe"
+                    # Use current rendered image
+                    ThermalFrameProcessor.write_tframe(
+                        output_path, rendered_image, frame, view_mode=self.view_mode
+                    )
+                    print(f"Screenshot saved: {output_path}")
+        
+        except KeyboardInterrupt:
+            print("\nStopping frame viewer...")
+        except Exception as e:
+            print(f"Error during frame viewing: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            cv2.destroyAllWindows()
+            print("Frame viewer stopped")
+    
     def run(self):
         """Main loop for live view"""
+        # Handle .tframe files separately
+        if self._is_tframe and self._tframe_data:
+            self._run_tframe()
+            return
+        
         if not self.initialize():
             return
         
@@ -270,6 +499,7 @@ class EnhancedLiveView(ThermalLiveView):
         print("  't' - Toggle view mode (YUYV / Temperature / Temperature Celsius)")
         print("  '+' - Increase contrast")
         print("  '-' - Decrease contrast")
+        print("  's' - Screenshot (save current frame)")
         print("  Mouse - Hover over image to see temperature")
         if is_recorded:
             print("  SPACE - Pause/Resume")
@@ -403,6 +633,8 @@ class EnhancedLiveView(ThermalLiveView):
                     # Re-render current frame if we have frame data (works during pause and live view)
                     if self._last_metadata:
                         self._rerender_frame(window_name)
+                elif key == ord('s'):
+                    self.screenshot()
                 elif key == ord(' ') and is_recorded:
                     paused = not paused
                     print("Paused" if paused else "Resumed")
@@ -441,6 +673,9 @@ Examples:
   
   # Recorded with custom FPS
   python live_view.py file.tseq --fps 30
+  
+  # View .tframe file (interactive single frame)
+  python live_view.py screenshot_20240101.tframe
         """
     )
     parser.add_argument(
@@ -448,7 +683,7 @@ Examples:
         type=str,
         nargs="?",
         default=None,
-        help="Source: file path for recorded .tseq file, or 0/empty/omit for live camera (default: live camera)"
+        help="Source: file path for recorded .tseq or .tframe file, or 0/empty/omit for live camera (default: live camera)"
     )
     parser.add_argument(
         "--fps",
