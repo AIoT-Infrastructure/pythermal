@@ -56,7 +56,7 @@ class EnhancedLiveView(ThermalLiveView):
             super().__init__(source)
         
         # Extended view modes
-        self.view_modes = ['yuyv', 'temperature', 'temperature_celsius']
+        self.view_modes = ['yuyv', 'temperature', 'temperature_celsius', 'mixed']
         self.view_mode_index = 0
         self.view_mode = self.view_modes[self.view_mode_index]
         self._playback_fps = None
@@ -191,6 +191,31 @@ class EnhancedLiveView(ThermalLiveView):
         
         return colored
     
+    def get_mixed_view(self, yuyv_data: np.ndarray, temp_array: np.ndarray,
+                       min_temp: float, max_temp: float) -> np.ndarray:
+        """
+        Blend YUYV image with temperature map to show both together
+        
+        Args:
+            yuyv_data: YUYV frame data (240x240)
+            temp_array: 96x96 array of 16-bit temperature values
+            min_temp: Minimum temperature from metadata
+            max_temp: Maximum temperature from metadata
+        
+        Returns:
+            BGR image (240x240) with blended YUYV and temperature map
+        """
+        # Get YUYV BGR image
+        yuyv_bgr = self.get_original_yuyv(yuyv_data)
+        
+        # Get temperature colorized view
+        temp_colored = self.get_temperature_view(temp_array, min_temp, max_temp)
+        
+        # Blend the two images (50% YUYV, 50% temperature map)
+        blended = cv2.addWeighted(yuyv_bgr, 0.5, temp_colored, 0.5, 0)
+        
+        return blended
+    
     def toggle_view_mode(self):
         """Toggle to next view mode"""
         self.view_mode_index = (self.view_mode_index + 1) % len(self.view_modes)
@@ -221,6 +246,8 @@ class EnhancedLiveView(ThermalLiveView):
             thermal_image = self.get_temperature_view(self._last_frame_data, min_temp, max_temp)
         elif self.view_mode == 'temperature_celsius' and self._last_frame_data is not None:
             thermal_image = self.get_temperature_celsius_view(self._last_frame_data, min_temp, max_temp)
+        elif self.view_mode == 'mixed' and self._last_yuyv is not None and self._last_frame_data is not None:
+            thermal_image = self.get_mixed_view(self._last_yuyv, self._last_frame_data, min_temp, max_temp)
         else:
             return
         
@@ -307,6 +334,8 @@ class EnhancedLiveView(ThermalLiveView):
             thermal_image = self.get_temperature_view(self._last_frame_data, min_temp, max_temp)
         elif self.view_mode == 'temperature_celsius' and self._last_frame_data is not None:
             thermal_image = self.get_temperature_celsius_view(self._last_frame_data, min_temp, max_temp)
+        elif self.view_mode == 'mixed' and self._last_yuyv is not None and self._last_frame_data is not None:
+            thermal_image = self.get_mixed_view(self._last_yuyv, self._last_frame_data, min_temp, max_temp)
         else:
             print("No frame data available for screenshot")
             return False
@@ -406,7 +435,7 @@ class EnhancedLiveView(ThermalLiveView):
         
         print("\n.tframe File Viewer Controls:")
         print("  'q' - Quit")
-        print("  't' - Toggle view mode (YUYV / Temperature / Temperature Celsius)")
+        print("  't' - Toggle view mode (YUYV / Temperature / Temperature Celsius / Mixed)")
         print("  '+' - Increase contrast")
         print("  '-' - Decrease contrast")
         print("  's' - Save screenshot")
@@ -428,6 +457,8 @@ class EnhancedLiveView(ThermalLiveView):
                         thermal_image = self.get_temperature_view(self._last_frame_data, min_temp, max_temp)
                     elif self.view_mode == 'temperature_celsius':
                         thermal_image = self.get_temperature_celsius_view(self._last_frame_data, min_temp, max_temp)
+                    elif self.view_mode == 'mixed' and self._last_yuyv is not None and self._last_frame_data is not None:
+                        thermal_image = self.get_mixed_view(self._last_yuyv, self._last_frame_data, min_temp, max_temp)
                     else:
                         thermal_image = self._tframe_data['rendered_image'].copy()
                     
@@ -507,7 +538,7 @@ class EnhancedLiveView(ThermalLiveView):
         
         print("\nControls:")
         print("  'q' - Quit")
-        print("  't' - Toggle view mode (YUYV / Temperature / Temperature Celsius)")
+        print("  't' - Toggle view mode (YUYV / Temperature / Temperature Celsius / Mixed)")
         print("  '+' - Increase contrast")
         print("  '-' - Decrease contrast")
         print("  's' - Screenshot (save current frame)")
@@ -582,6 +613,19 @@ class EnhancedLiveView(ThermalLiveView):
                             thermal_image = self.get_temperature_celsius_view(temp_array, min_temp, max_temp)
                         elif yuyv is not None:
                             thermal_image = self.get_original_yuyv(yuyv)
+                        else:
+                            if is_recorded:
+                                break
+                            time.sleep(0.01)
+                            continue
+                    
+                    elif self.view_mode == 'mixed':
+                        if yuyv is not None and temp_array is not None:
+                            thermal_image = self.get_mixed_view(yuyv, temp_array, min_temp, max_temp)
+                        elif yuyv is not None:
+                            thermal_image = self.get_original_yuyv(yuyv)
+                        elif temp_array is not None:
+                            thermal_image = self.get_temperature_view(temp_array, min_temp, max_temp)
                         else:
                             if is_recorded:
                                 break
