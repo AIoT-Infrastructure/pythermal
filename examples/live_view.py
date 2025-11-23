@@ -317,11 +317,21 @@ class EnhancedLiveView(ThermalLiveView):
                 self._last_frame_data, min_temp, max_temp
             )
         
-        # Draw overlay
+        # Draw overlay (without mouse temperature for screenshot)
+        # Temporarily clear mouse position to avoid including it in screenshot
+        saved_mouse_x = self.mouse_x
+        saved_mouse_y = self.mouse_y
+        self.mouse_x = -1
+        self.mouse_y = -1
+        
         fps = self.calculate_fps()
         thermal_image = self.draw_overlay(
             thermal_image, min_temp, max_temp, avg_temp, seq_val, fps
         )
+        
+        # Restore mouse position
+        self.mouse_x = saved_mouse_x
+        self.mouse_y = saved_mouse_y
         
         # Generate output path if not provided
         if output_path is None:
@@ -352,6 +362,7 @@ class EnhancedLiveView(ThermalLiveView):
                     )
             
             if frame is not None:
+                # Save without mouse position (use defaults: -1, -1, None)
                 success = ThermalFrameProcessor.write_tframe(
                     str(output_path), thermal_image, frame, view_mode=self.view_mode
                 )
@@ -426,7 +437,7 @@ class EnhancedLiveView(ThermalLiveView):
                             self._last_frame_data, min_temp, max_temp
                         )
                     
-                    # Draw overlay
+                    # Draw overlay (will include mouse temperature if mouse is over image)
                     fps = 0.0  # No FPS for single frame
                     thermal_image = self.draw_overlay(
                         thermal_image, min_temp, max_temp, avg_temp, metadata.seq, fps
@@ -434,7 +445,7 @@ class EnhancedLiveView(ThermalLiveView):
                     rendered_image = thermal_image
                     needs_rerender = False
                 else:
-                    # Use original rendered image
+                    # Use original rendered image (already includes saved mouse overlay)
                     rendered_image = self._tframe_data['rendered_image'].copy()
                 
                 # Display image
