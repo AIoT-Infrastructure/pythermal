@@ -700,4 +700,3 @@ Only the compiled native library (`.so`) is shipped; no vendor source or headers
 ## 💡 Acknowledgements
 
 **🏫 Developed by AIoT Lab, CUHK**  
-**📧 Device Access:** thermal@thingx-tech.com
