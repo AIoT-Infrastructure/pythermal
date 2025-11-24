@@ -6,6 +6,7 @@ This module contains the core components for thermal camera access:
 - ThermalSharedMemory: Shared memory interface
 - ThermalSequenceReader: Reader for recorded sequences
 - ThermalCapture: Unified capture interface (live or recorded)
+- ThermalFrameProcessor: Process and replay individual frames
 """
 
 from .device import ThermalDevice
@@ -22,6 +23,7 @@ from .thermal_shared_memory import (
 )
 from .sequence_reader import ThermalSequenceReader
 from .capture import ThermalCapture
+from .frame_processor import ThermalFrameProcessor, ThermalFrame
 
 __all__ = [
     "ThermalDevice",
@@ -29,6 +31,8 @@ __all__ = [
     "FrameMetadata",
     "ThermalSequenceReader",
     "ThermalCapture",
+    "ThermalFrameProcessor",
+    "ThermalFrame",
     "WIDTH",
     "HEIGHT",
     "TEMP_WIDTH",

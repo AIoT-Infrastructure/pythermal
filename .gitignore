@@ -64,3 +64,12 @@ models/
 *.pkl
 *.joblib
 *.joblib
+
+# Thermal data
+*.tframe
+*.tseq
+*.mp4
+*.npy
+*.jpg
+*.png
+*.jpeg
