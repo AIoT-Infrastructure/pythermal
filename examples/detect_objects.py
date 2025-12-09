@@ -48,6 +48,130 @@ def generate_colors(n: int) -> list:
     return colors
 
 
+def draw_area_curve(area_histories: dict, max_total_area: int, width: int, height: int) -> np.ndarray:
+    """
+    Draw curves showing object area over time for different objects/clusters.
+    
+    Args:
+        area_histories: Dictionary mapping cluster_id -> list of area values
+        max_total_area: Maximum total area (for y-axis scaling)
+        width: Width of the graph in pixels
+        height: Height of the graph in pixels
+    
+    Returns:
+        Graph image (BGR, height x width)
+    """
+    graph = np.zeros((height, width, 3), dtype=np.uint8)
+    
+    if not area_histories:
+        # Draw title even if no data
+        cv2.putText(
+            graph,
+            "Object Area Over Time (per object)",
+            (10, 20),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.5,
+            (255, 255, 255),
+            1
+        )
+        return graph
+    
+    # Calculate max area from all histories if max_total_area is 0 or too small
+    all_areas = []
+    for history in area_histories.values():
+        if history:
+            all_areas.extend(history)
+    
+    if not all_areas:
+        return graph
+    
+    # Use max_total_area for y-axis scaling, but ensure it's at least the max from histories
+    calculated_max = max(all_areas)
+    max_area = max(max_total_area, calculated_max) if max_total_area > 0 else calculated_max
+    
+    # Use max_total_area for y-axis scaling (keep consistent scale)
+    min_area = 0
+    area_range = max_area - min_area
+    
+    if area_range == 0:
+        area_range = 1  # Avoid division by zero
+    
+    # Draw grid lines
+    grid_color = (40, 40, 40)
+    for i in range(5):
+        y = int(height * i / 4)
+        cv2.line(graph, (0, y), (width, y), grid_color, 1)
+    
+    # Draw area value labels
+    if max_area > 0:
+        for i in range(5):
+            y = int(height * i / 4)
+            area_value = max_area - (area_range * i / 4)
+            label = f"{int(area_value)}"
+            cv2.putText(
+                graph,
+                label,
+                (5, y + 10),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.3,
+                (150, 150, 150),
+                1
+            )
+    
+    # Generate colors for each cluster
+    cluster_colors = generate_colors(max(len(area_histories), 1))
+    
+    # Draw curves for each cluster/object
+    cluster_idx = 0
+    for cluster_id, area_history in area_histories.items():
+        if len(area_history) < 2:
+            continue
+        
+        color = cluster_colors[cluster_idx % len(cluster_colors)] if cluster_colors else (0, 255, 0)
+        
+        # Draw the curve
+        points = []
+        for i, area in enumerate(area_history):
+            x = int((i / max(len(area_history) - 1, 1)) * (width - 1))
+            y = int(height - 1 - ((area - min_area) / area_range) * (height - 1))
+            points.append((x, y))
+        
+        # Draw line connecting points
+        if len(points) > 1:
+            for i in range(len(points) - 1):
+                cv2.line(graph, points[i], points[i + 1], color, 2)
+        
+        # Draw points
+        for point in points:
+            cv2.circle(graph, point, 2, color, -1)
+        
+        cluster_idx += 1
+    
+    # Draw title
+    cv2.putText(
+        graph,
+        "Object Area Over Time (per object)",
+        (10, 20),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.5,
+        (255, 255, 255),
+        1
+    )
+    
+    # Draw max area info
+    cv2.putText(
+        graph,
+        f"Max: {int(max_area)} px",
+        (width - 120, height - 10),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.4,
+        (150, 150, 150),
+        1
+    )
+    
+    return graph
+
+
 def visualize_clustered_objects(
     temp_array: np.ndarray,
     yuyv_frame: np.ndarray,
@@ -282,6 +406,12 @@ Examples:
     last_display_time = time.time()
     window_name = "Thermal Object Detection" + (" (Replay)" if is_recorded else "")
     
+    # Track area history per cluster for curve display
+    area_histories = {}  # Dictionary mapping cluster_id -> list of area values
+    max_total_area = 0  # Maximum total area seen (for y-axis scaling)
+    max_history_length = 200  # Keep last 200 frames
+    graph_height = 150  # Height of the area graph in pixels
+    
     try:
         while True:
             if not paused:
@@ -347,6 +477,39 @@ Examples:
                 # Cluster objects
                 clusters = cluster_objects(objects, max_distance=30.0)
                 
+                # Calculate area per cluster (in total pixels, not width x height)
+                # obj.area is calculated using cv2.contourArea() which gives actual pixel count
+                current_cluster_ids = set()
+                total_area = 0
+                
+                for cluster_idx, cluster in enumerate(clusters):
+                    cluster_id = cluster_idx
+                    current_cluster_ids.add(cluster_id)
+                    
+                    # Calculate total area for this cluster (sum of all objects in cluster)
+                    cluster_area = sum(obj.area for obj in cluster)
+                    total_area += cluster_area
+                    
+                    # Initialize history for this cluster if it doesn't exist
+                    if cluster_id not in area_histories:
+                        area_histories[cluster_id] = []
+                    
+                    # Update area history for this cluster
+                    area_histories[cluster_id].append(cluster_area)
+                    if len(area_histories[cluster_id]) > max_history_length:
+                        area_histories[cluster_id].pop(0)
+                
+                # Update max_total_area for y-axis scaling
+                if total_area > max_total_area:
+                    max_total_area = total_area
+                
+                # Clean up histories for clusters that no longer exist
+                clusters_to_remove = [cid for cid in area_histories.keys() if cid not in current_cluster_ids]
+                for cid in clusters_to_remove:
+                    # Keep the history for a bit in case cluster reappears, but limit it
+                    if len(area_histories[cid]) > max_history_length // 2:
+                        area_histories[cid] = area_histories[cid][-max_history_length // 2:]
+                
                 # Visualize
                 vis_image = visualize_clustered_objects(
                     temp_array=temp_array,
@@ -409,8 +572,14 @@ Examples:
                     )
                     y_offset += 18
                 
-                # Display
-                cv2.imshow(window_name, vis_image)
+                # Draw area curve (one curve per cluster/object with different colors)
+                area_graph = draw_area_curve(area_histories, max_total_area, WIDTH, graph_height)
+                
+                # Combine visualization with graph
+                combined_image = np.vstack([vis_image, area_graph])
+                
+                # Display combined image (visualization + area curve)
+                cv2.imshow(window_name, combined_image)
                 
                 # Mark frame as read
                 capture.mark_frame_read()
