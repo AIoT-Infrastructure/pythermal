@@ -1,4 +1,4 @@
-git #!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Example: Silhouette View with Adaptive Human Detection
 
