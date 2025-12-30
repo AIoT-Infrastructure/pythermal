@@ -20,6 +20,7 @@ from .thermal_shared_memory import (
     SHM_NAME,
     FRAME_SZ,
     TEMP_DATA_SIZE,
+    get_shm_name,
 )
 from .sequence_reader import ThermalSequenceReader
 from .capture import ThermalCapture
@@ -40,5 +41,6 @@ __all__ = [
     "SHM_NAME",
     "FRAME_SZ",
     "TEMP_DATA_SIZE",
+    "get_shm_name",
 ]
 

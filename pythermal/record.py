@@ -22,17 +22,23 @@ class ThermalRecorder:
     Records both YUYV frames and temperature arrays with timestamps.
     """
     
-    def __init__(self, output_dir: str = "recordings", color: bool = True):
+    def __init__(self, output_dir: str = "recordings", color: bool = True, device_index: int = 0, native_dir: Optional[str] = None):
         """
         Initialize thermal recorder.
         
         Args:
             output_dir: Directory to save recordings
             color: If True, also record colored RGB frames
+            device_index: Index of the USB device to use (0 for first device, 1 for second, etc.).
+                         Default is 0. Each device uses a separate shared memory segment.
+            native_dir: Optional path to native directory containing pythermal-recorder.
+                       If None, uses default package location.
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.color = color
+        self.device_index = device_index
+        self.native_dir = native_dir
         self.device: Optional[ThermalDevice] = None
         self._device_owned = False  # Track if we created the device
         self.recording = False
@@ -53,7 +59,7 @@ class ThermalRecorder:
             return True
         
         if device is None:
-            self.device = ThermalDevice()
+            self.device = ThermalDevice(native_dir=self.native_dir, device_index=self.device_index)
             self._device_owned = True
             if not self.device.start():
                 return False

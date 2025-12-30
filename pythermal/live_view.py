@@ -26,15 +26,21 @@ from .core import (
 class ThermalLiveView:
     """Live view display for thermal camera - supports live and recorded sources"""
     
-    def __init__(self, source: Union[str, int, None] = None):
+    def __init__(self, source: Union[str, int, None] = None, device_index: int = 0, native_dir: Optional[str] = None):
         """
         Initialize thermal live view.
         
         Args:
             source: File path for recorded .tseq file, or 0/None/empty for live camera (default: live camera)
+            device_index: Index of the USB device to use (0 for first device, 1 for second, etc.).
+                         Default is 0. Only used for live camera. Each device uses a separate shared memory segment.
+            native_dir: Optional path to native directory containing pythermal-recorder.
+                       If None, uses default package location. Only used for live camera.
         """
         self.capture: Optional[ThermalCapture] = None
         self.source = source
+        self.device_index = device_index
+        self.native_dir = native_dir
         self.frame_count = 0
         self.last_fps_time = time.time()
         self.fps = 0.0
@@ -50,7 +56,7 @@ class ThermalLiveView:
     def initialize(self) -> bool:
         """Initialize thermal capture connection"""
         try:
-            self.capture = ThermalCapture(self.source)
+            self.capture = ThermalCapture(self.source, device_index=self.device_index, native_dir=self.native_dir)
             
             # Read initial metadata to verify connection
             metadata = self.capture.get_metadata()

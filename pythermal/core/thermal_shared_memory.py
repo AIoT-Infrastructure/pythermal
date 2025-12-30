@@ -14,13 +14,32 @@ from typing import Optional, NamedTuple
 
 
 # Constants
-SHM_NAME = "/dev/shm/yuyv240_shm"
+SHM_NAME_BASE = "/dev/shm/yuyv240_shm"
 WIDTH = 240
 HEIGHT = 240
 FRAME_SZ = WIDTH * HEIGHT * 2
 TEMP_WIDTH = 96
 TEMP_HEIGHT = 96
 TEMP_DATA_SIZE = TEMP_WIDTH * TEMP_HEIGHT * 2  # 16-bit integers
+
+# Default shared memory name (for backward compatibility)
+SHM_NAME = SHM_NAME_BASE
+
+
+def get_shm_name(device_index: int = 0) -> str:
+    """
+    Generate shared memory name based on device index.
+    
+    Args:
+        device_index: Device index (0 for first device, 1 for second, etc.)
+        
+    Returns:
+        Shared memory file path
+    """
+    if device_index == 0:
+        return SHM_NAME_BASE
+    else:
+        return f"{SHM_NAME_BASE}_{device_index}"
 
 # Shared memory layout:
 # data[0:FRAME_SZ] = YUYV data

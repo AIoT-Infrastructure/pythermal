@@ -46,13 +46,15 @@ class ThermalDevice:
     provides access to thermal data through the shared memory interface.
     """
     
-    def __init__(self, native_dir: Optional[str] = None):
+    def __init__(self, native_dir: Optional[str] = None, device_index: int = 0):
         """
         Initialize thermal device manager.
         
         Args:
             native_dir: Optional path to native directory containing pythermal-recorder.
                        If None, uses default package location.
+            device_index: Index of the USB device to use (0 for first device, 1 for second, etc.).
+                         Default is 0. Each device uses a separate shared memory segment.
         """
         if native_dir is None:
             # Default to package location - detect architecture automatically
@@ -62,9 +64,15 @@ class ThermalDevice:
         else:
             self.native_dir = Path(native_dir)
         
+        self.device_index = device_index
+        
+        # Generate shared memory name based on device index
+        from .thermal_shared_memory import get_shm_name
+        shm_name = get_shm_name(device_index)
+        
         self.recorder_path = self.native_dir / "pythermal-recorder"
         self.process: Optional[subprocess.Popen] = None
-        self.shm_reader = ThermalSharedMemory()
+        self.shm_reader = ThermalSharedMemory(shm_name=shm_name)
         self._is_running = False
         
         # Register cleanup on exit
@@ -98,8 +106,10 @@ class ThermalDevice:
         # Start the recorder process
         try:
             # Change to native directory to ensure proper library loading
+            # Pass device index as command-line argument
+            cmd = [str(self.recorder_path), str(self.device_index)]
             self.process = subprocess.Popen(
-                [str(self.recorder_path)],
+                cmd,
                 cwd=str(self.native_dir),
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,

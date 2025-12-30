@@ -182,6 +182,19 @@ def create_background_view(background: np.ndarray, min_temp: float, max_temp: fl
 
 def main():
     """Main function to run the motion detection example"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="Thermal motion detection with background subtraction"
+    )
+    parser.add_argument(
+        "--device-index",
+        type=int,
+        default=0,
+        help="Index of the USB device to use (0 for first device, 1 for second, etc.). Default: 0"
+    )
+    args = parser.parse_args()
+    
     print("Starting thermal motion detection with background subtraction...")
     print("Press 'q' to quit, 'r' to reset background")
     
@@ -189,7 +202,7 @@ def main():
     print("Initializing thermal capture...")
     capture = None
     try:
-        capture = ThermalCapture()  # None/0/empty string defaults to live camera
+        capture = ThermalCapture(device_index=args.device_index)  # None/0/empty string defaults to live camera
         
         # Initialize background subtractor
         bg_subtractor = BackgroundSubtractor(

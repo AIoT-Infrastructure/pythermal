@@ -179,6 +179,19 @@ def visualize_roi_detection(
 
 def main():
     """Main function to run the ROI monitoring example"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="ROI-based zone monitoring for thermal camera"
+    )
+    parser.add_argument(
+        "--device-index",
+        type=int,
+        default=0,
+        help="Index of the USB device to use (0 for first device, 1 for second, etc.). Default: 0"
+    )
+    args = parser.parse_args()
+    
     print("Starting ROI-based zone monitoring...")
     print("Press 'q' to quit")
     
@@ -186,7 +199,7 @@ def main():
     print("Initializing thermal capture...")
     capture = None
     try:
-        capture = ThermalCapture()  # None/0/empty string defaults to live camera
+        capture = ThermalCapture(device_index=args.device_index)  # None/0/empty string defaults to live camera
         
         # Initialize ROI manager
         roi_manager = ROIManager(image_width=TEMP_WIDTH, image_height=TEMP_HEIGHT)
