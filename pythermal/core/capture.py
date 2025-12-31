@@ -29,13 +29,17 @@ class ThermalCapture:
     to work with both live and recorded data without modification.
     """
     
-    def __init__(self, source: Union[str, int, None] = None):
+    def __init__(self, source: Union[str, int, None] = None, device_index: Optional[int] = None, native_dir: Optional[str] = None):
         """
         Initialize thermal capture from source
         
         Args:
             source: File path for recorded .tseq file, or 0/None/empty string for live camera
                    If None, defaults to live camera (0)
+            device_index: Index of the USB device to use (0 for first device, 1 for second, etc.).
+                         Default is 0. Only used for live camera. Each device uses a separate shared memory segment.
+            native_dir: Optional path to native directory containing pythermal-recorder.
+                       If None, uses default package location. Only used for live camera.
         
         Raises:
             FileNotFoundError: If file path doesn't exist
@@ -49,7 +53,7 @@ class ThermalCapture:
         if source is None or source == 0 or source == "0" or source == "":
             # Use live camera
             self._is_recorded = False
-            self._device = ThermalDevice()
+            self._device = ThermalDevice(native_dir=native_dir, device_index=device_index)
             
             # Start device and initialize shared memory
             if not self._device.start():

@@ -12,8 +12,11 @@ The `ThermalCapture` class provides a unified interface for both live camera fee
 
    from pythermal import ThermalCapture
 
-   # For live camera (default)
+   # For live camera (default - uses smallest available device)
    capture = ThermalCapture()  # or ThermalCapture(0) or ThermalCapture(None)
+
+   # For specific device (by consistent device ID)
+   capture = ThermalCapture(device_index=1)  # Use device with ID 1
 
    # For recorded sequence
    capture = ThermalCapture("recordings/thermal_20240101.tseq")
@@ -251,6 +254,37 @@ Monitor specific regions of interest:
 
    capture.release()
 
+Multi-Device Support
+--------------------
+
+When multiple thermal cameras are connected, PyThermal automatically assigns consistent device IDs based on USB serial numbers. This ensures that the same physical device always gets the same ID, even after reconnection:
+
+.. code-block:: python
+
+   from pythermal import ThermalCapture
+
+   # Use device with ID 0 (first device, or smallest available)
+   capture0 = ThermalCapture(device_index=0)
+
+   # Use device with ID 1 (second device)
+   capture1 = ThermalCapture(device_index=1)
+
+   # If no device_index is specified, uses smallest available device ID
+   capture_auto = ThermalCapture()  # Automatically selects smallest available device
+
+   # Each device uses separate shared memory:
+   # Device 0: /dev/shm/yuyv240_shm
+   # Device 1: /dev/shm/yuyv240_shm_1
+   # Device 2: /dev/shm/yuyv240_shm_2
+   # etc.
+
+**Device Mapping:**
+
+Device IDs are stored persistently in ``~/.pythermal/device_mapping.json``, mapping USB serial numbers to consistent device IDs. This ensures:
+- Same device always gets the same ID (even after reboot)
+- Device IDs remain stable across sessions
+- Automatic selection of smallest available device when ``device_index=None``
+
 Advanced: Direct Shared Memory Access
 --------------------------------------
 
@@ -260,7 +294,8 @@ For advanced use cases, you can access the shared memory interface directly:
 
    from pythermal import ThermalDevice, ThermalSharedMemory
 
-   device = ThermalDevice()
+   # Use specific device (by consistent device ID)
+   device = ThermalDevice(device_index=1)
    device.start()
    shm = device.get_shared_memory()
 

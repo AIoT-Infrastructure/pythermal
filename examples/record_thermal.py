@@ -26,9 +26,10 @@ from pythermal import ThermalDevice, ThermalRecorder, ThermalSharedMemory
 class EnhancedRecorder:
     """Enhanced recorder with MP4 and NPY support"""
     
-    def __init__(self, output_dir: str = "recordings"):
+    def __init__(self, output_dir: str = "recordings", device_index: int = 0):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.device_index = device_index
         self.device = None
         self.temp_arrays = []  # Store temperature arrays for NPY
         
@@ -46,7 +47,7 @@ class EnhancedRecorder:
         print(f"FPS: {fps}")
         
         # Initialize device
-        self.device = ThermalDevice()
+        self.device = ThermalDevice(device_index=self.device_index)
         if not self.device.start():
             print("Error: Failed to start thermal device")
             return False
@@ -216,10 +217,16 @@ def main():
         default="recordings",
         help="Output directory for recordings (default: recordings)"
     )
+    parser.add_argument(
+        "--device-index",
+        type=int,
+        default=None,
+        help="Index of the USB device to use (0 for first device, 1 for second, etc.). If not specified, uses the smallest available device."
+    )
     
     args = parser.parse_args()
     
-    recorder = EnhancedRecorder(output_dir=args.output_dir)
+    recorder = EnhancedRecorder(output_dir=args.output_dir, device_index=args.device_index)
     recorder.record(
         duration=args.duration,
         format_type=args.format,

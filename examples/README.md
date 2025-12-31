@@ -9,8 +9,11 @@ This directory contains example scripts demonstrating how to use PyThermal.
 Record thermal camera data with configurable parameters:
 
 ```bash
-# Record for 10 seconds, save both MP4 and raw data
+# Record for 10 seconds, save both MP4 and raw data (uses smallest available device)
 python examples/record_thermal.py --duration 10 --format both
+
+# Record from specific device by ID
+python examples/record_thermal.py --duration 10 --format both --device-index 1
 
 # Record for 30 seconds, MP4 only
 python examples/record_thermal.py --duration 30 --format mp4
@@ -38,11 +41,17 @@ python examples/record_thermal.py --duration 15 --format both --fps 30 --output-
 Display live thermal camera feed with multiple view modes:
 
 ```bash
-# Basic usage
+# Basic usage (uses smallest available device)
 python examples/live_view.py
+
+# Use specific device by ID
+python examples/live_view.py --device-index 1
 
 # With custom device path
 python examples/live_view.py --device /path/to/native/dir
+
+# Use specific device with custom path
+python examples/live_view.py --device-index 1 --device /path/to/native/dir
 ```
 
 **Features:**
@@ -94,4 +103,12 @@ All examples require:
 - Proper USB permissions set up (run `setup.sh`)
 
 For live view examples, an X11 display is required.
+
+**Multi-Device Support:**
+
+All examples support the `--device-index` parameter to select a specific thermal camera when multiple devices are connected:
+- If `--device-index` is not specified, the smallest available device ID is used automatically
+- Device IDs are consistent across sessions (based on USB serial numbers)
+- Device mapping is stored in `~/.pythermal/device_mapping.json`
+- Each device uses a separate shared memory segment for parallel operation
 

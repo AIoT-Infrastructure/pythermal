@@ -29,12 +29,16 @@ from pythermal.utils import estimate_environment_temperature_v1
 class EnhancedLiveView(ThermalLiveView):
     """Enhanced live view with additional color modes"""
     
-    def __init__(self, source=None):
+    def __init__(self, source=None, device_index: int = 0, native_dir: Optional[str] = None):
         """
         Initialize enhanced live view
         
         Args:
             source: File path for recorded .tseq or .tframe file, or 0/None/empty for live camera (default: live camera)
+            device_index: Index of the USB device to use (0 for first device, 1 for second, etc.).
+                         Default is 0. Only used for live camera. Each device uses a separate shared memory segment.
+            native_dir: Optional path to native directory containing pythermal-recorder.
+                       If None, uses default package location. Only used for live camera.
         """
         # Check if source is a .tframe file
         self._is_tframe = False
@@ -49,11 +53,11 @@ class EnhancedLiveView(ThermalLiveView):
                 if self._tframe_data is None:
                     raise ValueError(f"Failed to load .tframe file: {source}")
                 # Don't initialize parent with source for .tframe files
-                super().__init__(None)
+                super().__init__(source=None, device_index=device_index, native_dir=native_dir)
             else:
-                super().__init__(source)
+                super().__init__(source=source, device_index=device_index, native_dir=native_dir)
         else:
-            super().__init__(source)
+            super().__init__(source=source, device_index=device_index, native_dir=native_dir)
         
         # Extended view modes
         self.view_modes = ['yuyv', 'temperature', 'temperature_celsius', 'mixed']
@@ -746,11 +750,17 @@ Examples:
         default=None,
         help="Target FPS for recorded data playback (default: use original timestamps, live: no limit)"
     )
+    parser.add_argument(
+        "--device-index",
+        type=int,
+        default=None,
+        help="Index of the USB device to use (0 for first device, 1 for second, etc.). If not specified, uses the smallest available device."
+    )
     
     args = parser.parse_args()
     
     # Create viewer with unified interface
-    viewer = EnhancedLiveView(source=args.source)
+    viewer = EnhancedLiveView(source=args.source, device_index=args.device_index)
     
     # Store FPS for use in run() if needed
     viewer._playback_fps = args.fps

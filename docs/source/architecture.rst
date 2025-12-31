@@ -13,12 +13,26 @@ The library provides a unified interface (`ThermalCapture`) that works seamlessl
 Native Runtime
 --------------
 
-For live camera access, the library uses a native binary (`pythermal-recorder`) that runs as a separate process and writes thermal data to shared memory (`/dev/shm/yuyv240_shm`). The Python library communicates with this process via shared memory for efficient zero-copy data access.
+For live camera access, the library uses a native binary (`pythermal-recorder`) that runs as a separate process and writes thermal data to shared memory. Each device uses its own shared memory segment for parallel operation. The Python library communicates with these processes via shared memory for efficient zero-copy data access.
+
+Multi-Device Architecture
+--------------------------
+
+PyThermal supports multiple thermal cameras connected simultaneously:
+
+- **Device Enumeration**: Uses `enumerate_devices` helper executable to query USB SDK for connected devices
+- **Consistent ID Mapping**: Maps USB serial numbers to consistent device IDs (0, 1, 2, ...) stored in `~/.pythermal/device_mapping.json`
+- **Device-Specific Shared Memory**: Each device uses a separate shared memory segment:
+  - Device 0: `/dev/shm/yuyv240_shm`
+  - Device 1: `/dev/shm/yuyv240_shm_1`
+  - Device 2: `/dev/shm/yuyv240_shm_2`
+  - etc.
+- **Parallel Operation**: Multiple `ThermalDevice` instances can run simultaneously, each accessing its own shared memory segment
 
 Shared Memory Layout
 --------------------
 
-The shared memory (`/dev/shm/yuyv240_shm`) contains:
+Each shared memory segment (`/dev/shm/yuyv240_shm` or `/dev/shm/yuyv240_shm_{device_id}`) contains:
 
 .. code-block:: text
 
@@ -40,12 +54,23 @@ Process Management
 
 For live camera feeds, the `ThermalDevice` class:
 
-1. Starts `pythermal-recorder` as a subprocess
-2. Waits for shared memory to become available
-3. Provides access to thermal data via `ThermalSharedMemory`
-4. Automatically cleans up the process on exit
+1. Enumerates devices via `DeviceManager` to map device_id to enum_index (SDK's internal index)
+2. Starts `pythermal-recorder` as a subprocess with both enum_index (for device selection) and device_id (for shared memory naming)
+3. Waits for shared memory to become available
+4. Provides access to thermal data via `ThermalSharedMemory`
+5. Automatically cleans up the process on exit
 
 The `ThermalCapture` class automatically manages `ThermalDevice` for live sources or `ThermalSequenceReader` for recorded files, providing a unified interface.
+
+**Device Selection Flow:**
+
+1. User specifies `device_index` (consistent ID) or `None` (auto-select smallest)
+2. `DeviceManager` maps `device_id` to USB serial number via `device_mapping.json`
+3. `DeviceManager` enumerates current devices and matches serial number to `enum_index` (SDK's internal index)
+4. `ThermalDevice` passes `enum_index` to C++ recorder for device selection
+5. `ThermalDevice` passes `device_id` to C++ recorder for shared memory naming
+6. C++ recorder creates device-specific shared memory segment
+7. Python reads from the correct shared memory segment based on `device_id`
 
 Module Structure
 ----------------

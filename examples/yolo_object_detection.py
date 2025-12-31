@@ -65,6 +65,12 @@ Examples:
         default=None,
         help="Playback FPS for recorded data (default: use original timestamps, live: no limit)"
     )
+    parser.add_argument(
+        "--device-index",
+        type=int,
+        default=None,
+        help="Index of the USB device to use (0 for first device, 1 for second, etc.). If not specified, uses the smallest available device."
+    )
     
     args = parser.parse_args()
     
@@ -81,7 +87,7 @@ Examples:
     print("Initializing thermal capture...")
     capture = None
     try:
-        capture = ThermalCapture(args.source)
+        capture = ThermalCapture(args.source, device_index=args.device_index)
         is_recorded = capture.is_recorded
         
         if is_recorded:
