@@ -19,6 +19,14 @@ It provides unified APIs for recording, visualization, and intelligent analysis 
 * **Shared Memory Architecture**
   Efficient zero-copy access to thermal data via shared memory interface.
 
+* **Multi-Device Support**
+  Connect and use multiple thermal cameras simultaneously:
+  
+  * Consistent device ID mapping based on USB serial numbers (similar to `cv2.VideoCapture`)
+  * Automatic device enumeration and selection
+  * Device-specific shared memory segments for parallel operation
+  * Persistent device mapping stored in `~/.pythermal/device_mapping.json`
+
 * **Thermal Object Detection**
   Detect objects based on temperature ranges with clustering support:
   
@@ -133,8 +141,11 @@ The `ThermalCapture` class provides a unified interface for both live camera fee
 ```python
 from pythermal import ThermalCapture
 
-# For live camera (default)
+# For live camera (default - uses smallest available device)
 capture = ThermalCapture()  # or ThermalCapture(0) or ThermalCapture(None)
+
+# For specific device (by consistent device ID)
+capture = ThermalCapture(device_index=1)  # Use device with ID 1
 
 # For recorded sequence
 capture = ThermalCapture("recordings/thermal_20240101.tseq")
@@ -246,6 +257,36 @@ if capture.has_new_frame():
 capture.release()
 ```
 
+**Multi-Device Usage**
+
+When multiple thermal cameras are connected, PyThermal automatically assigns consistent device IDs based on USB serial numbers. This ensures that the same physical device always gets the same ID, even after reconnection:
+
+```python
+from pythermal import ThermalCapture
+
+# Use device with ID 0 (first device, or smallest available)
+capture0 = ThermalCapture(device_index=0)
+
+# Use device with ID 1 (second device)
+capture1 = ThermalCapture(device_index=1)
+
+# If no device_index is specified, uses smallest available device ID
+capture_auto = ThermalCapture()  # Automatically selects smallest available device
+
+# Each device uses separate shared memory:
+# Device 0: /dev/shm/yuyv240_shm
+# Device 1: /dev/shm/yuyv240_shm_1
+# Device 2: /dev/shm/yuyv240_shm_2
+# etc.
+```
+
+**Device Mapping**
+
+Device IDs are stored persistently in `~/.pythermal/device_mapping.json`, mapping USB serial numbers to consistent device IDs. This ensures:
+- Same device always gets the same ID (even after reboot)
+- Device IDs remain stable across sessions
+- Automatic selection of smallest available device when `device_index=None`
+
 **Advanced: Direct Shared Memory Access**
 
 For advanced use cases, you can access the shared memory interface directly:
@@ -253,7 +294,8 @@ For advanced use cases, you can access the shared memory interface directly:
 ```python
 from pythermal import ThermalDevice, ThermalSharedMemory
 
-device = ThermalDevice()
+# Use specific device (by consistent device ID)
+device = ThermalDevice(device_index=1)
 device.start()
 shm = device.get_shared_memory()
 
@@ -410,6 +452,108 @@ See `examples/yolo_object_detection.py` and `examples/yolo_pose_detection.py` fo
 
 ---
 
+## 🔌 Multi-Device Support
+
+PyThermal supports connecting and using multiple thermal cameras simultaneously. Each device is assigned a consistent device ID based on its USB serial number, ensuring stable identification across sessions and reboots.
+
+### How It Works
+
+1. **Device Enumeration**: When you connect a thermal camera, PyThermal queries the USB SDK to get the device's serial number.
+
+2. **Consistent ID Mapping**: Each unique serial number is mapped to a consistent device ID (0, 1, 2, ...) stored in `~/.pythermal/device_mapping.json`.
+
+3. **Automatic Selection**: If no `device_index` is specified, PyThermal automatically uses the smallest available device ID.
+
+4. **Device-Specific Shared Memory**: Each device uses its own shared memory segment:
+   - Device 0: `/dev/shm/yuyv240_shm`
+   - Device 1: `/dev/shm/yuyv240_shm_1`
+   - Device 2: `/dev/shm/yuyv240_shm_2`
+   - etc.
+
+### Usage Examples
+
+**Basic Usage:**
+```python
+from pythermal import ThermalCapture
+
+# Automatically use smallest available device
+capture = ThermalCapture()
+
+# Use specific device by ID
+capture0 = ThermalCapture(device_index=0)
+capture1 = ThermalCapture(device_index=1)
+```
+
+**Parallel Operation:**
+```python
+from pythermal import ThermalCapture
+import threading
+
+def capture_from_device(device_id):
+    capture = ThermalCapture(device_index=device_id)
+    while True:
+        if capture.has_new_frame():
+            metadata = capture.get_metadata()
+            print(f"Device {device_id}: {metadata.avg_temp:.1f}°C")
+            capture.mark_frame_read()
+
+# Capture from multiple devices in parallel
+thread0 = threading.Thread(target=capture_from_device, args=(0,))
+thread1 = threading.Thread(target=capture_from_device, args=(1,))
+thread0.start()
+thread1.start()
+```
+
+**Command-Line Usage:**
+```bash
+# Use device 0 (default)
+python examples/live_view.py
+
+# Use device 1
+python examples/live_view.py --device-index 1
+
+# Record from device 0
+python examples/record_thermal.py --duration 10
+
+# Record from device 1
+python examples/record_thermal.py --duration 10 --device-index 1
+```
+
+### Device Mapping File
+
+The device mapping is stored in `~/.pythermal/device_mapping.json`:
+```json
+{
+  "SERIAL001": 0,
+  "SERIAL002": 1,
+  "SERIAL003": 2
+}
+```
+
+This ensures:
+- Same physical device always gets the same ID
+- Device IDs persist across reboots
+- Easy identification of devices by serial number
+
+### Troubleshooting Multi-Device Issues
+
+* **Device ID changes after reconnection**
+  - Check that USB serial numbers are being read correctly
+  - Verify `~/.pythermal/device_mapping.json` exists and is writable
+  - Try removing the mapping file and letting PyThermal recreate it
+
+* **Cannot access multiple devices simultaneously**
+  - Ensure each device uses a different `device_index`
+  - Check that shared memory segments are unique for each device
+  - Verify USB permissions are set up correctly for all devices
+
+* **Wrong device selected**
+  - Explicitly specify `device_index` instead of relying on automatic selection
+  - Check the device mapping file to see which serial number maps to which ID
+  - Use `enumerate_devices` helper to list all connected devices
+
+---
+
 ## 🧩 Command Line Interface
 
 | Command                | Description                                     |
@@ -555,7 +699,13 @@ The library automatically detects your system architecture and loads the appropr
 
 ### Shared Memory Layout
 
-The shared memory (`/dev/shm/yuyv240_shm`) contains:
+Each device uses its own shared memory segment:
+- Device 0: `/dev/shm/yuyv240_shm`
+- Device 1: `/dev/shm/yuyv240_shm_1`
+- Device 2: `/dev/shm/yuyv240_shm_2`
+- etc.
+
+The shared memory (`/dev/shm/yuyv240_shm` or `/dev/shm/yuyv240_shm_{device_id}`) contains:
 
 ```
 Offset          Size            Content

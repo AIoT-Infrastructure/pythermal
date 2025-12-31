@@ -7,6 +7,7 @@ This can be used to build the device mapping file.
 """
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
