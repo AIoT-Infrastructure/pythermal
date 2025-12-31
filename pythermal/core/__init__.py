@@ -25,6 +25,7 @@ from .thermal_shared_memory import (
 from .sequence_reader import ThermalSequenceReader
 from .capture import ThermalCapture
 from .frame_processor import ThermalFrameProcessor, ThermalFrame
+from .device_manager import DeviceManager, get_device_id_by_serial, get_smallest_device_id
 
 __all__ = [
     "ThermalDevice",
@@ -34,6 +35,9 @@ __all__ = [
     "ThermalCapture",
     "ThermalFrameProcessor",
     "ThermalFrame",
+    "DeviceManager",
+    "get_device_id_by_serial",
+    "get_smallest_device_id",
     "WIDTH",
     "HEIGHT",
     "TEMP_WIDTH",

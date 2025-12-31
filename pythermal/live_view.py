@@ -26,7 +26,7 @@ from .core import (
 class ThermalLiveView:
     """Live view display for thermal camera - supports live and recorded sources"""
     
-    def __init__(self, source: Union[str, int, None] = None, device_index: int = 0, native_dir: Optional[str] = None):
+    def __init__(self, source: Union[str, int, None] = None, device_index: Optional[int] = None, native_dir: Optional[str] = None):
         """
         Initialize thermal live view.
         

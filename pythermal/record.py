@@ -22,7 +22,7 @@ class ThermalRecorder:
     Records both YUYV frames and temperature arrays with timestamps.
     """
     
-    def __init__(self, output_dir: str = "recordings", color: bool = True, device_index: int = 0, native_dir: Optional[str] = None):
+    def __init__(self, output_dir: str = "recordings", color: bool = True, device_index: Optional[int] = None, native_dir: Optional[str] = None):
         """
         Initialize thermal recorder.
         

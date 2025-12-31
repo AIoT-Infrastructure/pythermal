@@ -29,14 +29,14 @@ from pythermal.utils import estimate_environment_temperature_v1
 class LowResLiveView(ThermalLiveView):
     """Low-resolution live view using native 96x96 thermal data"""
     
-    def __init__(self, source=None, device_index: int = 0, native_dir: Optional[str] = None):
+    def __init__(self, source=None, device_index: Optional[int] = None, native_dir: Optional[str] = None):
         """
         Initialize low-resolution live view
         
         Args:
             source: File path for recorded .tseq or .tframe file, or 0/None/empty for live camera (default: live camera)
             device_index: Index of the USB device to use (0 for first device, 1 for second, etc.).
-                         Default is 0. Only used for live camera.
+                         If None, uses the smallest available device. Only used for live camera.
             native_dir: Optional path to native directory containing pythermal-recorder.
                        If None, uses default package location. Only used for live camera.
         """
@@ -452,8 +452,8 @@ Examples:
     parser.add_argument(
         "--device-index",
         type=int,
-        default=0,
-        help="Index of the USB device to use (0 for first device, 1 for second, etc.). Default: 0"
+        default=None,
+        help="Index of the USB device to use (0 for first device, 1 for second, etc.). If not specified, uses the smallest available device."
     )
     
     args = parser.parse_args()

@@ -187,8 +187,8 @@ def main():
     parser.add_argument(
         "--device-index",
         type=int,
-        default=0,
-        help="Index of the USB device to use (0 for first device, 1 for second, etc.). Default: 0"
+        default=None,
+        help="Index of the USB device to use (0 for first device, 1 for second, etc.). If not specified, uses the smallest available device."
     )
     args = parser.parse_args()
     
