@@ -12,9 +12,12 @@ import subprocess
 import time
 import signal
 import atexit
+import logging
 from pathlib import Path
 from typing import Optional
 from .thermal_shared_memory import ThermalSharedMemory
+
+logger = logging.getLogger(__name__)
 
 
 def _detect_native_directory() -> str:
@@ -171,9 +174,18 @@ class ThermalDevice:
         self._enum_index = enum_index  # Store the enum_index (for C++ code)
         self._device_serial = None  # Will be set after device login
         
-        # Generate shared memory name based on device index
+        # Try to get serial number from device enumeration
+        if devices:
+            for device in devices:
+                serial = device.get('serial_number', '').strip()
+                enum_idx = device.get('enum_index', -1)
+                if serial and enum_idx == enum_index:
+                    self._device_serial = serial
+                    break
+        
+        # Generate shared memory name based on serial number (preferred) or device index
         from .thermal_shared_memory import get_shm_name
-        shm_name = get_shm_name(device_index)
+        shm_name = get_shm_name(device_index=device_index, serial_number=self._device_serial)
         
         self.recorder_path = self.native_dir / "pythermal-recorder"
         self.process: Optional[subprocess.Popen] = None
@@ -211,10 +223,15 @@ class ThermalDevice:
         # Start the recorder process
         try:
             # Change to native directory to ensure proper library loading
-            # Pass enum_index (for device selection) and device_index (for shared memory naming)
+            # Pass enum_index (for device selection) and serial_number (for shared memory naming)
             # argv[1] = enum_index (SDK's internal index)
-            # argv[2] = device_index (consistent ID for shared memory)
-            cmd = [str(self.recorder_path), str(self._enum_index), str(self.device_index)]
+            # argv[2] = serial_number (for shared memory naming)
+            cmd = [str(self.recorder_path), str(self._enum_index)]
+            if self._device_serial:
+                cmd.append(self._device_serial)
+            else:
+                # Fallback: use device_index as string if no serial available
+                cmd.append(str(self.device_index))
             self.process = subprocess.Popen(
                 cmd,
                 cwd=str(self.native_dir),
@@ -307,7 +324,7 @@ class ThermalDevice:
             for device in devices:
                 enum_idx = device.get('enum_index', -1)
                 if enum_idx == self._enum_index:
-                    serial = device.get('serial_number', '')
+                    serial = device.get('serial_number', '').strip()
                     if serial:
                         # Update mapping: serial -> device_id (consistent ID)
                         device_id = self._device_manager.get_device_id(serial)
@@ -316,6 +333,14 @@ class ThermalDevice:
                         if device_id != self.device_index:
                             # Update mapping to use current device_index
                             self._device_manager.update_mapping(serial, self.device_index)
+                        
+                        # Update shared memory name to use serial number
+                        from .thermal_shared_memory import get_shm_name
+                        new_shm_name = get_shm_name(device_index=self.device_index, serial_number=serial)
+                        if self.shm_reader.shm_name != new_shm_name:
+                            # Recreate shared memory reader with serial-based name
+                            self.shm_reader = ThermalSharedMemory(shm_name=new_shm_name)
+                            logger.info(f"Updated shared memory name to use serial number: {new_shm_name}")
                         break
         except Exception:
             # Failed to update mapping, continue anyway

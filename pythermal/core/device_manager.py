@@ -8,6 +8,7 @@ Stores the mapping in a file for persistence across sessions.
 """
 
 import json
+import csv
 import subprocess
 import os
 import time
@@ -39,11 +40,14 @@ class DeviceManager:
             mapping_file = config_dir / "device_mapping.json"
         
         self.mapping_file = Path(mapping_file)
+        # Camera table file: CSV format for easy viewing/editing
+        self.cameras_table_file = self.mapping_file.parent / "cameras"
         self.mapping: Dict[str, int] = {}  # serial_number -> device_id
         self._load_mapping()
     
     def _load_mapping(self):
-        """Load device mapping from file."""
+        """Load device mapping from file (JSON) and camera table (CSV)."""
+        # Try loading from JSON first (backward compatibility)
         if self.mapping_file.exists():
             try:
                 with open(self.mapping_file, 'r') as f:
@@ -51,30 +55,88 @@ class DeviceManager:
             except (json.JSONDecodeError, IOError) as e:
                 print(f"Warning: Failed to load device mapping: {e}")
                 self.mapping = {}
-        else:
+        
+        # Also try loading from CSV table (preferred format)
+        if self.cameras_table_file.exists():
+            try:
+                csv_mapping = self._load_cameras_table()
+                if csv_mapping:
+                    # Merge CSV data, CSV takes precedence
+                    self.mapping.update(csv_mapping)
+            except Exception as e:
+                print(f"Warning: Failed to load cameras table: {e}")
+        
+        # If no mapping exists, start fresh
+        if not self.mapping:
             self.mapping = {}
     
+    def _load_cameras_table(self) -> Dict[str, int]:
+        """Load camera mappings from CSV table file."""
+        mapping = {}
+        if not self.cameras_table_file.exists():
+            return mapping
+        
+        try:
+            with open(self.cameras_table_file, 'r', newline='') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    serial = row.get('serial_number', '').strip()
+                    device_index = row.get('device_index', '').strip()
+                    if serial and device_index:
+                        try:
+                            mapping[serial] = int(device_index)
+                        except ValueError:
+                            continue
+        except Exception as e:
+            print(f"Warning: Failed to parse cameras table: {e}")
+        
+        return mapping
+    
+    def _save_cameras_table(self):
+        """Save camera mappings to CSV table file."""
+        try:
+            self.cameras_table_file.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Sort by device_index for consistent ordering
+            sorted_mappings = sorted(self.mapping.items(), key=lambda x: (x[1], x[0]))
+            
+            with open(self.cameras_table_file, 'w', newline='') as f:
+                writer = csv.writer(f)
+                # Write header
+                writer.writerow(['serial_number', 'device_index'])
+                # Write data rows (exclude placeholder entries)
+                for serial, device_id in sorted_mappings:
+                    if not serial.startswith("_empty_"):
+                        writer.writerow([serial, device_id])
+        except IOError as e:
+            print(f"Warning: Failed to save cameras table: {e}")
+    
     def _save_mapping(self):
-        """Save device mapping to file."""
+        """Save device mapping to both JSON and CSV table files."""
+        # Save JSON (for backward compatibility)
         try:
             self.mapping_file.parent.mkdir(parents=True, exist_ok=True)
             with open(self.mapping_file, 'w') as f:
                 json.dump(self.mapping, f, indent=2)
         except IOError as e:
             print(f"Warning: Failed to save device mapping: {e}")
+        
+        # Save CSV table (human-readable format)
+        self._save_cameras_table()
     
     def enumerate_devices_via_sdk(self, native_dir: Optional[Path] = None) -> List[Dict]:
         """
         Enumerate devices by querying the SDK via a helper script.
         
         This creates a temporary script that uses the SDK to enumerate devices
-        and parse their serial numbers.
+        and parse their serial numbers. Devices are sorted by serial number
+        to ensure consistent ordering.
         
         Args:
             native_dir: Optional path to native directory
             
         Returns:
-            List of device info dictionaries
+            List of device info dictionaries, sorted by serial number
         """
         devices = []
         
@@ -113,14 +175,39 @@ class DeviceManager:
                 import json
                 devices = json.loads(result.stdout)
                 
-                # Update mapping with discovered devices
+                # Separate devices with and without serial numbers
+                devices_with_serial = []
+                devices_without_serial = []
+                
                 for device in devices:
-                    serial = device.get('serial_number', '')
-                    enum_idx = device.get('enum_index', 0)
+                    serial = device.get('serial_number', '').strip()
                     if serial:
-                        # Map serial number to consistent device ID
-                        device_id = self.get_device_id(serial)
+                        devices_with_serial.append(device)
+                    else:
+                        devices_without_serial.append(device)
+                
+                # Sort devices by serial number to ensure consistent ordering
+                devices_with_serial.sort(key=lambda d: d.get('serial_number', '').strip())
+                
+                # Normalize device IDs based on sorted serial numbers
+                # This ensures cameras are always ordered consistently by serial number
+                self._normalize_device_ids(devices_with_serial)
+                
+                # Assign device IDs to devices
+                for device in devices_with_serial:
+                    serial = device.get('serial_number', '').strip()
+                    if serial:
+                        device_id = self.mapping.get(serial, 0)
                         device['device_id'] = device_id
+                
+                # Handle devices without serial numbers (assign IDs after serialized devices)
+                for device in devices_without_serial:
+                    enum_idx = device.get('enum_index', 0)
+                    # Use enum_index as device_id for devices without serial
+                    device['device_id'] = enum_idx
+                
+                # Combine and return devices (with serial first, sorted)
+                devices = devices_with_serial + devices_without_serial
                         
         except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError) as e:
             # Enumeration failed, return empty list
@@ -128,16 +215,56 @@ class DeviceManager:
         
         return devices
     
+    def _normalize_device_ids(self, current_devices: List[Dict]):
+        """
+        Normalize device IDs based on sorted serial numbers.
+        
+        This ensures that devices are always assigned IDs based on their
+        serial number order (alphabetically sorted), regardless of when
+        they were first discovered or their enumeration order.
+        
+        Args:
+            current_devices: List of currently connected devices with serial numbers
+        """
+        # Get all serial numbers from current devices
+        current_serials = [d.get('serial_number', '').strip() 
+                          for d in current_devices 
+                          if d.get('serial_number', '').strip()]
+        
+        # Get all serial numbers from existing mapping (including disconnected devices)
+        existing_serials = set(self.mapping.keys())
+        existing_serials = {s for s in existing_serials if not s.startswith("_empty_")}
+        
+        # Combine and sort all serial numbers
+        all_serials = sorted(set(current_serials) | existing_serials)
+        
+        # Create new mapping based on sorted order
+        new_mapping = {}
+        for position, serial in enumerate(all_serials):
+            new_mapping[serial] = position
+        
+        # Preserve placeholder entries (devices without serial numbers)
+        for key, value in self.mapping.items():
+            if key.startswith("_empty_"):
+                new_mapping[key] = value
+        
+        # Update mapping
+        self.mapping = new_mapping
+        self._save_mapping()
+    
     def get_device_id(self, serial_number: str) -> int:
         """
         Get device ID for a given serial number.
-        If not in mapping, assigns a new ID (smallest available).
+        
+        Device IDs are assigned based on sorted serial number order.
+        The mapping is normalized when devices are enumerated via enumerate_devices_via_sdk(),
+        ensuring consistent ordering regardless of enumeration order.
         
         Args:
             serial_number: USB device serial number
             
         Returns:
-            Device ID (0, 1, 2, ...)
+            Device ID (0, 1, 2, ...) based on sorted serial number order
         """
         if not serial_number or serial_number.strip() == "":
             # Empty serial number - assign next available ID
@@ -151,18 +278,29 @@ class DeviceManager:
             self._save_mapping()
             return new_id
         
+        # Return existing mapping if available
         if serial_number in self.mapping:
             return self.mapping[serial_number]
         
-        # Assign new ID: smallest available
-        used_ids = set(self.mapping.values())
-        new_id = 0
-        while new_id in used_ids:
-            new_id += 1
+        # New device - assign ID based on sorted position
+        # Get all serial numbers (existing + new)
+        all_serials = set(self.mapping.keys())
+        all_serials.add(serial_number)
         
-        self.mapping[serial_number] = new_id
+        # Remove placeholder entries
+        all_serials = {s for s in all_serials if not s.startswith("_empty_")}
+        
+        # Sort all serial numbers
+        sorted_serials = sorted(all_serials)
+        
+        # Find position of this serial in sorted list
+        position = sorted_serials.index(serial_number)
+        
+        # Assign this serial to its sorted position
+        self.mapping[serial_number] = position
         self._save_mapping()
-        return new_id
+        
+        return position
     
     def get_serial_by_id(self, device_id: int) -> Optional[str]:
         """
@@ -230,6 +368,41 @@ class DeviceManager:
             List of (serial_number, device_id) tuples, sorted by device_id
         """
         return sorted(self.mapping.items(), key=lambda x: x[1])
+    
+    def get_cameras_table_path(self) -> Path:
+        """
+        Get the path to the cameras table file.
+        
+        Returns:
+            Path to the cameras CSV table file
+        """
+        return self.cameras_table_file
+    
+    def print_cameras_table(self):
+        """
+        Print the cameras table in a human-readable format.
+        """
+        if not self.mapping:
+            print("No cameras registered.")
+            return
+        
+        # Sort by device_index
+        sorted_mappings = sorted(self.mapping.items(), key=lambda x: (x[1], x[0]))
+        
+        print("\n" + "=" * 70)
+        print("Registered Cameras")
+        print("=" * 70)
+        print(f"{'Device Index':<15} {'Serial Number':<50}")
+        print("-" * 70)
+        
+        for serial, device_id in sorted_mappings:
+            if not serial.startswith("_empty_"):
+                print(f"{device_id:<15} {serial:<50}")
+        
+        print("=" * 70)
+        print(f"\nTable file: {self.cameras_table_file}")
+        print(f"JSON file: {self.mapping_file}")
+        print()
 
 
 def get_device_id_by_serial(serial_number: str, mapping_file: Optional[str] = None) -> int:

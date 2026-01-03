@@ -26,19 +26,25 @@ TEMP_DATA_SIZE = TEMP_WIDTH * TEMP_HEIGHT * 2  # 16-bit integers
 SHM_NAME = SHM_NAME_BASE
 
 
-def get_shm_name(device_index: int = 0) -> str:
+def get_shm_name(device_index: int = 0, serial_number: Optional[str] = None) -> str:
     """
-    Generate shared memory name based on device index.
+    Generate shared memory name based on serial number (preferred) or device index.
     
     Args:
-        device_index: Device index (0 for first device, 1 for second, etc.)
+        device_index: Device index (fallback if serial_number not provided)
+        serial_number: Serial number of the device (preferred method)
         
     Returns:
         Shared memory file path
     """
-    if device_index == 0:
+    if serial_number and serial_number.strip():
+        # Use serial number: /dev/shm/yuyv240_shm_[SN]
+        return f"{SHM_NAME_BASE}_{serial_number.strip()}"
+    elif device_index == 0:
+        # Fallback to base name for device 0
         return SHM_NAME_BASE
     else:
+        # Fallback to device index for backward compatibility
         return f"{SHM_NAME_BASE}_{device_index}"
 
 # Shared memory layout:
