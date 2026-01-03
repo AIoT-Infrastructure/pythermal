@@ -4,7 +4,7 @@ PyThermal - A lightweight Python library for thermal sensing and analytics.
 A lightweight Python library for thermal sensing and analytics on ARM Linux platforms.
 """
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 from .core import (
     ThermalDevice,

@@ -2,6 +2,11 @@
 
 All notable changes to PyThermal will be documented in this file.
 
+## [0.3.1] - 2026-01-03
+
+### Fixed
+- Fixed documentation build compatibility with Sphinx 7.0+ by pinning Sphinx to <7.0
+
 ## [0.3.0] - 2026-01-03
 
 ### Added
