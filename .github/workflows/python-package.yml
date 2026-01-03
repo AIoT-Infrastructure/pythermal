@@ -129,7 +129,7 @@ jobs:
     - name: Create virtual environment and install documentation dependencies
       run: |
         uv venv
-        uv pip install --python .venv/bin/python sphinx sphinx-rtd-theme sphinxcontrib-napoleon
+        uv pip install --python .venv/bin/python "sphinx<7.0" sphinx-rtd-theme sphinxcontrib-napoleon
     
     - name: Build documentation
       run: |
@@ -171,7 +171,7 @@ jobs:
     - name: Create virtual environment and install documentation dependencies
       run: |
         uv venv
-        uv pip install --python .venv/bin/python sphinx sphinx-rtd-theme sphinxcontrib-napoleon
+        uv pip install --python .venv/bin/python "sphinx<7.0" sphinx-rtd-theme sphinxcontrib-napoleon
     
     - name: Build documentation
       run: |

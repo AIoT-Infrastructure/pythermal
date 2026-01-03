@@ -61,14 +61,14 @@ open docs/build/html/index.html  # Mac
 
 Documentation build requires:
 
-- sphinx
+- sphinx<7.0 (sphinx_rtd_theme doesn't support Sphinx 7.0+)
 - sphinx-rtd-theme
 - sphinxcontrib-napoleon
 
 Install with:
 
 ```bash
-pip install sphinx sphinx-rtd-theme sphinxcontrib-napoleon
+pip install "sphinx<7.0" sphinx-rtd-theme sphinxcontrib-napoleon
 ```
 
 ## Rebuilding

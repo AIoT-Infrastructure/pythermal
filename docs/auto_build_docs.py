@@ -127,7 +127,7 @@ def build_docs(docs_dir, clean=False):
         return False
     except FileNotFoundError:
         print("❌ Error: 'make' command not found.")
-        print("   Please install Sphinx: pip install sphinx sphinx-rtd-theme sphinxcontrib-napoleon")
+        print("   Please install Sphinx: pip install \"sphinx<7.0\" sphinx-rtd-theme sphinxcontrib-napoleon")
         return False
 
 
