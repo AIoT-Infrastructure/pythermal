@@ -72,6 +72,10 @@ class ThermalDevice:
         from .device_manager import DeviceManager
         self._device_manager = DeviceManager()
         
+        # Initialize _device_serial early to avoid AttributeError
+        self._device_serial = None
+        devices = None  # Initialize devices variable
+        
         if device_index is None:
             # Enumerate devices to find available ones
             devices = self._device_manager.enumerate_devices_via_sdk(self.native_dir)
@@ -172,20 +176,29 @@ class ThermalDevice:
         
         self.device_index = device_index  # Store the device_id (consistent ID)
         self._enum_index = enum_index  # Store the enum_index (for C++ code)
-        self._device_serial = None  # Will be set after device login
         
-        # Try to get serial number from device enumeration
-        if devices:
+        # Try to get serial number from device enumeration (if not already set above)
+        # This is critical for proper shared memory naming
+        if not self._device_serial and devices is not None:
             for device in devices:
                 serial = device.get('serial_number', '').strip()
                 enum_idx = device.get('enum_index', -1)
                 if serial and enum_idx == enum_index:
                     self._device_serial = serial
+                    logger.info(f"Found serial number for enum_index {enum_index}: {serial}")
                     break
+        
+        # If we still don't have serial number, try to get it from expected device_id mapping
+        if not self._device_serial and device_index is not None:
+            expected_serial = self._device_manager.get_serial_by_id(device_index)
+            if expected_serial:
+                self._device_serial = expected_serial
+                logger.info(f"Using serial number from mapping for device_index {device_index}: {expected_serial}")
         
         # Generate shared memory name based on serial number (preferred) or device index
         from .thermal_shared_memory import get_shm_name
         shm_name = get_shm_name(device_index=device_index, serial_number=self._device_serial)
+        logger.info(f"Using shared memory name: {shm_name} (device_index={device_index}, serial={self._device_serial})")
         
         self.recorder_path = self.native_dir / "pythermal-recorder"
         self.process: Optional[subprocess.Popen] = None
@@ -229,8 +242,11 @@ class ThermalDevice:
             cmd = [str(self.recorder_path), str(self._enum_index)]
             if self._device_serial:
                 cmd.append(self._device_serial)
+                logger.info(f"Starting pythermal-recorder with enum_index={self._enum_index}, serial={self._device_serial}")
             else:
                 # Fallback: use device_index as string if no serial available
+                # But this should rarely happen - we should have serial by now
+                logger.warning(f"No serial number available, using device_index={self.device_index} as fallback")
                 cmd.append(str(self.device_index))
             self.process = subprocess.Popen(
                 cmd,
@@ -275,7 +291,7 @@ class ThermalDevice:
     
     def stop(self):
         """Stop the thermal recorder process and cleanup resources."""
-        if self.process is not None:
+        if hasattr(self, 'process') and self.process is not None:
             try:
                 # Send SIGTERM to process group
                 os.killpg(os.getpgid(self.process.pid), signal.SIGTERM)
@@ -295,8 +311,13 @@ class ThermalDevice:
             finally:
                 self.process = None
         
-        self.shm_reader.cleanup()
-        self._is_running = False
+        if hasattr(self, 'shm_reader') and self.shm_reader is not None:
+            try:
+                self.shm_reader.cleanup()
+            except Exception:
+                pass
+        if hasattr(self, '_is_running'):
+            self._is_running = False
     
     def is_running(self) -> bool:
         """Check if the thermal recorder is running."""
@@ -360,7 +381,11 @@ class ThermalDevice:
     
     def cleanup(self):
         """Cleanup resources (called automatically on exit)."""
-        self.stop()
+        try:
+            self.stop()
+        except Exception:
+            # Ignore errors during cleanup
+            pass
     
     def __enter__(self):
         """Context manager entry."""
@@ -373,5 +398,9 @@ class ThermalDevice:
     
     def __del__(self):
         """Destructor."""
-        self.cleanup()
+        try:
+            self.cleanup()
+        except Exception:
+            # Ignore errors during destruction
+            pass
 

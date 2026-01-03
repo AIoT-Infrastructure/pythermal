@@ -49,6 +49,11 @@ class ThermalCapture:
         """
         from .device import ThermalDevice
         
+        # Initialize attributes to avoid AttributeError during cleanup
+        self._device = None
+        self._data_source = None
+        self._is_recorded = False
+        
         # Normalize source: None, 0, "0", or "" means live camera
         if source is None or source == 0 or source == "0" or source == "":
             # Use live camera
@@ -243,13 +248,19 @@ class ThermalCapture:
         """
         Release resources (VideoCapture-like interface)
         """
-        if self._is_recorded:
-            self._data_source.release()
-        else:
-            if self._device:
-                self._device.stop()
-                self._device = None
-            self._data_source = None
+        try:
+            if self._is_recorded:
+                if hasattr(self, '_data_source') and self._data_source:
+                    self._data_source.release()
+            else:
+                if hasattr(self, '_device') and self._device:
+                    self._device.stop()
+                    self._device = None
+            if hasattr(self, '_data_source'):
+                self._data_source = None
+        except Exception:
+            # Ignore errors during release
+            pass
     
     def __enter__(self):
         """Context manager entry"""
@@ -261,5 +272,9 @@ class ThermalCapture:
     
     def __del__(self):
         """Cleanup on deletion"""
-        self.release()
+        try:
+            self.release()
+        except Exception:
+            # Ignore errors during destruction
+            pass
 

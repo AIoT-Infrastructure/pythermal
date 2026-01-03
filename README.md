@@ -23,9 +23,11 @@ It provides unified APIs for recording, visualization, and intelligent analysis 
   Connect and use multiple thermal cameras simultaneously:
   
   * Consistent device ID mapping based on USB serial numbers (similar to `cv2.VideoCapture`)
+  * Serial-number-based shared memory naming for strict device identification
   * Automatic device enumeration and selection
   * Device-specific shared memory segments for parallel operation
-  * Persistent device mapping stored in `~/.pythermal/device_mapping.json`
+  * Persistent device mapping stored in `~/.pythermal/device_mapping.json` and `~/.pythermal/cameras` (CSV table)
+  * Devices are automatically sorted by serial number for consistent ordering
 
 * **Thermal Object Detection**
   Detect objects based on temperature ranges with clustering support:
@@ -273,19 +275,25 @@ capture1 = ThermalCapture(device_index=1)
 # If no device_index is specified, uses smallest available device ID
 capture_auto = ThermalCapture()  # Automatically selects smallest available device
 
-# Each device uses separate shared memory:
-# Device 0: /dev/shm/yuyv240_shm
-# Device 1: /dev/shm/yuyv240_shm_1
-# Device 2: /dev/shm/yuyv240_shm_2
+# Each device uses separate shared memory (named by serial number):
+# Device 0 (serial EA4782688): /dev/shm/yuyv240_shm_EA4782688
+# Device 1 (serial EA4782767): /dev/shm/yuyv240_shm_EA4782767
+# Device 2 (serial EA4782845): /dev/shm/yuyv240_shm_EA4782845
 # etc.
 ```
 
 **Device Mapping**
 
-Device IDs are stored persistently in `~/.pythermal/device_mapping.json`, mapping USB serial numbers to consistent device IDs. This ensures:
+Device IDs are stored persistently in two formats:
+1. **JSON mapping** (`~/.pythermal/device_mapping.json`): Maps USB serial numbers to consistent device IDs
+2. **CSV table** (`~/.pythermal/cameras`): Human-readable table format for easy viewing/editing
+
+This ensures:
 - Same device always gets the same ID (even after reboot)
 - Device IDs remain stable across sessions
+- Devices are automatically sorted by serial number for consistent ordering
 - Automatic selection of smallest available device when `device_index=None`
+- Strict device identification using serial numbers in shared memory names
 
 **Advanced: Direct Shared Memory Access**
 
@@ -464,11 +472,13 @@ PyThermal supports connecting and using multiple thermal cameras simultaneously.
 
 3. **Automatic Selection**: If no `device_index` is specified, PyThermal automatically uses the smallest available device ID.
 
-4. **Device-Specific Shared Memory**: Each device uses its own shared memory segment:
-   - Device 0: `/dev/shm/yuyv240_shm`
-   - Device 1: `/dev/shm/yuyv240_shm_1`
-   - Device 2: `/dev/shm/yuyv240_shm_2`
+4. **Device-Specific Shared Memory**: Each device uses its own shared memory segment named by serial number:
+   - Device 0 (serial EA4782688): `/dev/shm/yuyv240_shm_EA4782688`
+   - Device 1 (serial EA4782767): `/dev/shm/yuyv240_shm_EA4782767`
+   - Device 2 (serial EA4782845): `/dev/shm/yuyv240_shm_EA4782845`
    - etc.
+   
+   This serial-number-based naming ensures strict device identification - each physical camera always uses the same shared memory name, regardless of USB port or enumeration order.
 
 ### Usage Examples
 
@@ -519,21 +529,34 @@ python examples/record_thermal.py --duration 10
 python examples/record_thermal.py --duration 10 --device-index 1
 ```
 
-### Device Mapping File
+### Device Mapping Files
 
-The device mapping is stored in `~/.pythermal/device_mapping.json`:
+The device mapping is stored in two formats:
+
+**JSON Format** (`~/.pythermal/device_mapping.json`):
 ```json
 {
-  "SERIAL001": 0,
-  "SERIAL002": 1,
-  "SERIAL003": 2
+  "EA4782688": 0,
+  "EA4782767": 1,
+  "EA4782845": 2
 }
+```
+
+**CSV Table** (`~/.pythermal/cameras`):
+```csv
+serial_number,device_index
+EA4782688,0
+EA4782767,1
+EA4782845,2
 ```
 
 This ensures:
 - Same physical device always gets the same ID
 - Device IDs persist across reboots
+- Devices are automatically sorted by serial number for consistent ordering
 - Easy identification of devices by serial number
+- Human-readable CSV format for easy viewing/editing
+- Strict device identification using serial numbers in shared memory names
 
 ### Troubleshooting Multi-Device Issues
 
@@ -699,10 +722,15 @@ The library automatically detects your system architecture and loads the appropr
 
 ### Shared Memory Layout
 
-Each device uses its own shared memory segment:
-- Device 0: `/dev/shm/yuyv240_shm`
-- Device 1: `/dev/shm/yuyv240_shm_1`
-- Device 2: `/dev/shm/yuyv240_shm_2`
+Each device uses its own shared memory segment named by serial number:
+- Device 0 (serial EA4782688): `/dev/shm/yuyv240_shm_EA4782688`
+- Device 1 (serial EA4782767): `/dev/shm/yuyv240_shm_EA4782767`
+- Device 2 (serial EA4782845): `/dev/shm/yuyv240_shm_EA4782845`
+
+**Serial-Number-Based Naming**: PyThermal uses USB serial numbers in shared memory names to ensure strict device identification. This means:
+- Each physical camera always uses the same shared memory name
+- No confusion even if devices are reconnected in different USB ports
+- Consistent device mapping regardless of enumeration order
 - etc.
 
 The shared memory (`/dev/shm/yuyv240_shm` or `/dev/shm/yuyv240_shm_{device_id}`) contains:
